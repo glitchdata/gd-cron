@@ -70,6 +70,26 @@
     font-size: 12px;
 }
 
+.gd-cron-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin: 12px 0;
+}
+
+.gd-cron-filters label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.gd-cron-filters input[type="text"],
+.gd-cron-filters select {
+    min-width: 160px;
+}
+
 @media (max-width: 960px) {
     .gd-cron-grid {
         grid-template-columns: 1fr;

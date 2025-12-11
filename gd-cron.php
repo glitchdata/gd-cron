@@ -108,7 +108,44 @@ class GDCronManager
         echo '<h2>' . esc_html__('Scheduled Events', 'gd-cron') . '</h2>';
         echo '<p class="description">' . esc_html__('Run or delete cron events from here. Use cautiously on production sites.', 'gd-cron') . '</p>';
 
-        if (empty($events)) {
+        $hook_filter = isset($_GET['hook_filter']) ? sanitize_text_field(wp_unslash($_GET['hook_filter'])) : '';
+        $schedule_filter = isset($_GET['schedule_filter']) ? sanitize_text_field(wp_unslash($_GET['schedule_filter'])) : '';
+        $only_due = !empty($_GET['only_due']);
+
+        $schedules = wp_get_schedules();
+
+        $filtered = array_filter($events, function ($event) use ($hook_filter, $schedule_filter, $only_due, $now) {
+            if ($hook_filter !== '' && stripos($event['hook'], $hook_filter) === false) {
+                return false;
+            }
+            if ($schedule_filter !== '' && $event['schedule'] !== $schedule_filter) {
+                return false;
+            }
+            if ($only_due && $event['timestamp'] > $now) {
+                return false;
+            }
+            return true;
+        });
+
+        echo '<form method="get" class="gd-cron-filters">';
+        echo '<input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '">';
+        echo '<label>' . esc_html__('Hook contains', 'gd-cron') . ' <input type="text" name="hook_filter" value="' . esc_attr($hook_filter) . '" placeholder="my_hook"></label>';
+        echo '<label>' . esc_html__('Recurrence', 'gd-cron') . ' <select name="schedule_filter">';
+        echo '<option value="">' . esc_html__('Any', 'gd-cron') . '</option>';
+        echo '<option value="once"' . selected($schedule_filter, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
+        foreach ($schedules as $key => $data) {
+            $label = $data['display'] ?? $key;
+            echo '<option value="' . esc_attr($key) . '"' . selected($schedule_filter, $key, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select></label>';
+        echo '<label><input type="checkbox" name="only_due" value="1"' . checked($only_due, true, false) . '> ' . esc_html__('Due now/overdue only', 'gd-cron') . '</label>';
+        echo '<button class="button">' . esc_html__('Filter', 'gd-cron') . '</button> ';
+        $reset_url = admin_url('tools.php?page=' . self::MENU_SLUG);
+        echo '<a class="button" href="' . esc_url($reset_url) . '">' . esc_html__('Reset', 'gd-cron') . '</a> ';
+        echo '<a class="button button-primary" href="' . esc_url(admin_url('tools.php?page=' . self::EDIT_SLUG)) . '">' . esc_html__('Edit Event', 'gd-cron') . '</a>';
+        echo '</form>';
+
+        if (empty($filtered)) {
             echo '<p>' . esc_html__('No cron events found.', 'gd-cron') . '</p>';
             return;
         }
@@ -122,7 +159,7 @@ class GDCronManager
         echo '<th class="column-actions">' . esc_html__('Actions', 'gd-cron') . '</th>';
         echo '</tr></thead><tbody>';
 
-        foreach ($events as $event) {
+        foreach ($filtered as $event) {
             $args_display = empty($event['args']) ? '&ndash;' : esc_html(wp_json_encode($event['args']));
             $human_time = $event['timestamp'] <= $now
                 ? esc_html__('Due now', 'gd-cron')
