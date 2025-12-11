@@ -31,16 +31,18 @@ class GDCronManager
 
     public function register_menu(): void
     {
-        add_management_page(
-            __('Cron Manager', 'gd-cron'),
-            __('Cron Manager', 'gd-cron'),
+        add_menu_page(
+            __('GD Cron', 'gd-cron'),
+            __('GD Cron', 'gd-cron'),
             'manage_options',
             self::MENU_SLUG,
-            [$this, 'render_page']
+            [$this, 'render_page'],
+            'dashicons-clock',
+            65
         );
 
         add_submenu_page(
-            'tools.php',
+            self::MENU_SLUG,
             __('Edit Cron Event', 'gd-cron'),
             __('Edit Cron Event', 'gd-cron'),
             'manage_options',
@@ -52,8 +54,8 @@ class GDCronManager
     public function enqueue_assets(string $hook): void
     {
         $allowed = [
-            'tools_page_' . self::MENU_SLUG,
-            'tools_page_' . self::EDIT_SLUG,
+            'toplevel_page_' . self::MENU_SLUG,
+            self::MENU_SLUG . '_page_' . self::EDIT_SLUG,
         ];
 
         if (!in_array($hook, $allowed, true)) {
@@ -99,7 +101,7 @@ class GDCronManager
         echo '<h1>' . esc_html__('Cron Manager', 'gd-cron') . '</h1>';
         $this->render_notices();
 
-        $base_url = admin_url('tools.php?page=' . self::MENU_SLUG);
+        $base_url = admin_url('admin.php?page=' . self::MENU_SLUG);
         echo '<h2 class="nav-tab-wrapper">';
         echo '<a href="' . esc_url(add_query_arg('tab', 'events', $base_url)) . '" class="nav-tab ' . ($tab === 'events' ? 'nav-tab-active' : '') . '">' . esc_html__('Events', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'settings', $base_url)) . '" class="nav-tab ' . ($tab === 'settings' ? 'nav-tab-active' : '') . '">' . esc_html__('Settings', 'gd-cron') . '</a>';
@@ -160,9 +162,9 @@ class GDCronManager
         echo '</select></label>';
         echo '<label><input type="checkbox" name="only_due" value="1"' . checked($only_due, true, false) . '> ' . esc_html__('Due now/overdue only', 'gd-cron') . '</label>';
         echo '<button class="button">' . esc_html__('Filter', 'gd-cron') . '</button> ';
-        $reset_url = admin_url('tools.php?page=' . self::MENU_SLUG);
+        $reset_url = admin_url('admin.php?page=' . self::MENU_SLUG);
         echo '<a class="button" href="' . esc_url($reset_url) . '">' . esc_html__('Reset', 'gd-cron') . '</a> ';
-        echo '<a class="button button-primary" href="' . esc_url(admin_url('tools.php?page=' . self::EDIT_SLUG)) . '">' . esc_html__('Add New Event', 'gd-cron') . '</a>';
+        echo '<a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=' . self::EDIT_SLUG)) . '">' . esc_html__('Add New Event', 'gd-cron') . '</a>';
         echo '</form>';
 
         if (empty($filtered)) {
@@ -271,7 +273,7 @@ class GDCronManager
             'timestamp' => $event['timestamp'],
             'hook' => $event['hook'],
             'sig' => $event['sig'],
-        ], admin_url('tools.php'));
+        ], admin_url('admin.php'));
 
         echo '<a class="button" href="' . esc_url($edit_url) . '">' . esc_html__('Edit', 'gd-cron') . '</a>';
         echo '</div>';
@@ -620,7 +622,7 @@ class GDCronManager
 
     public function add_plugin_link(array $links): array
     {
-        $url = admin_url('tools.php?page=' . self::MENU_SLUG);
+        $url = admin_url('admin.php?page=' . self::MENU_SLUG);
         $links[] = '<a href="' . esc_url($url) . '">' . esc_html__('Open Cron Manager', 'gd-cron') . '</a>';
         return $links;
     }
@@ -680,7 +682,7 @@ class GDCronManager
 
         if (!$event) {
             echo '<p>' . esc_html__('Event not found. It may have just run or been removed.', 'gd-cron') . '</p>';
-            echo '<p><a class="button" href="' . esc_url(admin_url('tools.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Back to Cron Manager', 'gd-cron') . '</a></p>';
+            echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Back to Cron Manager', 'gd-cron') . '</a></p>';
             echo '</div>';
             return;
         }
@@ -721,7 +723,7 @@ class GDCronManager
 
         echo '<p class="submit">';
         echo '<button type="submit" class="button button-primary">' . esc_html__('Save changes', 'gd-cron') . '</button> ';
-        echo '<a class="button" href="' . esc_url(admin_url('tools.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Cancel', 'gd-cron') . '</a>';
+        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Cancel', 'gd-cron') . '</a>';
         echo '</p>';
         echo '</form>';
         echo '</div>';
@@ -729,7 +731,7 @@ class GDCronManager
 
     public function hide_edit_submenu(): void
     {
-        remove_submenu_page('tools.php', self::EDIT_SLUG);
+        remove_submenu_page(self::MENU_SLUG, self::EDIT_SLUG);
     }
 
     private function get_settings(): array
