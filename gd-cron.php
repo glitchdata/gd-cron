@@ -142,7 +142,7 @@ class GDCronManager
         echo '<button class="button">' . esc_html__('Filter', 'gd-cron') . '</button> ';
         $reset_url = admin_url('tools.php?page=' . self::MENU_SLUG);
         echo '<a class="button" href="' . esc_url($reset_url) . '">' . esc_html__('Reset', 'gd-cron') . '</a> ';
-        echo '<a class="button button-primary" href="' . esc_url(admin_url('tools.php?page=' . self::EDIT_SLUG)) . '">' . esc_html__('Edit Event', 'gd-cron') . '</a>';
+        echo '<a class="button button-primary" href="' . esc_url(admin_url('tools.php?page=' . self::EDIT_SLUG)) . '">' . esc_html__('Add New Event', 'gd-cron') . '</a>';
         echo '</form>';
 
         if (empty($filtered)) {
