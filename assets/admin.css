@@ -65,7 +65,7 @@
 .gd-audit__settings-form input[type="number"],
 .gd-audit__settings-form select,
 .gd-audit__settings-form textarea {
-    width: 360px;
+    width: 300px;
     max-width: 100%;
 }
 
