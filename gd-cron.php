@@ -125,6 +125,52 @@ class GDCronManager
         echo '</div>';
     }
 
+    private function render_settings_form(array $schedules): void
+    {
+        $default_schedule = $this->settings['default_schedule'] ?? 'once';
+        $default_first_run_offset = (int) ($this->settings['default_first_run_offset'] ?? 300);
+        $license_key = isset($this->settings['license_key']) ? (string) $this->settings['license_key'] : '';
+        $require_confirm = !empty($this->settings['require_delete_confirmation']);
+
+        echo '<h2>' . esc_html__('Settings', 'gd-cron') . '</h2>';
+        echo '<form method="post" class="gd-cron-form">';
+        wp_nonce_field(self::NONCE_ACTION);
+        echo '<input type="hidden" name="gd_cron_action" value="save_settings">';
+
+        echo '<table class="form-table" role="presentation">';
+
+        echo '<tr><th scope="row">' . esc_html__('Default first-run offset (seconds)', 'gd-cron') . '</th><td>';
+        echo '<input type="number" name="default_first_run_offset" value="' . esc_attr($default_first_run_offset) . '" min="60" step="60" class="small-text">';
+        echo '<p class="description">' . esc_html__('Used when no time is provided while scheduling. Minimum 60 seconds.', 'gd-cron') . '</p>';
+        echo '</td></tr>';
+
+        echo '<tr><th scope="row">' . esc_html__('Default recurrence', 'gd-cron') . '</th><td>';
+        echo '<select name="default_schedule">';
+        echo '<option value="once"' . selected($default_schedule, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
+        foreach ($schedules as $key => $data) {
+            $label = $data['display'] ?? $key;
+            echo '<option value="' . esc_attr($key) . '"' . selected($default_schedule, $key, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '</td></tr>';
+
+        echo '<tr><th scope="row">' . esc_html__('License key', 'gd-cron') . '</th><td>';
+        echo '<input type="text" name="license_key" value="' . esc_attr($license_key) . '" class="regular-text" placeholder="XXXX-XXXX-XXXX-XXXX">';
+        echo '<p class="description">' . esc_html__('Store your GD Cron license key for reference.', 'gd-cron') . '</p>';
+        echo '</td></tr>';
+
+        echo '<tr><th scope="row">' . esc_html__('Delete confirmation', 'gd-cron') . '</th><td>';
+        echo '<label><input type="checkbox" name="require_delete_confirmation" value="1"' . checked($require_confirm, true, false) . '> ' . esc_html__('Ask before deleting events', 'gd-cron') . '</label>';
+        echo '</td></tr>';
+
+        echo '</table>';
+
+        echo '<p class="submit">';
+        echo '<button type="submit" class="button button-primary">' . esc_html__('Save settings', 'gd-cron') . '</button>';
+        echo '</p>';
+        echo '</form>';
+    }
+
     private function render_events_table(array $events, int $now): void
     {
         echo '<h2>' . esc_html__('Scheduled Events', 'gd-cron') . '</h2>';
@@ -460,6 +506,7 @@ class GDCronManager
         $offset = isset($raw['default_first_run_offset']) ? (int) $raw['default_first_run_offset'] : 300;
         $schedule = isset($raw['default_schedule']) ? sanitize_text_field($raw['default_schedule']) : 'once';
         $require_confirm = !empty($raw['require_delete_confirmation']) ? 1 : 0;
+        $license_key = isset($raw['license_key']) ? sanitize_text_field($raw['license_key']) : '';
 
         $offset = max(60, $offset);
 
@@ -471,6 +518,7 @@ class GDCronManager
         $settings = [
             'default_first_run_offset' => $offset,
             'default_schedule' => $schedule,
+            'license_key' => $license_key,
             'require_delete_confirmation' => $require_confirm,
         ];
 
@@ -739,6 +787,7 @@ class GDCronManager
         $defaults = [
             'default_first_run_offset' => 300,
             'default_schedule' => 'once',
+            'license_key' => '',
             'require_delete_confirmation' => 1,
         ];
 
