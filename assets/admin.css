@@ -75,7 +75,7 @@
     flex-wrap: wrap;
     gap: 12px;
     align-items: center;
-    margin: 12px 0;
+    margin: 12px 0 18px;
 }
 
 .gd-cron-filters label {

@@ -88,21 +88,37 @@ class GDCronManager
         $this->settings = $this->get_settings();
         $this->handle_actions();
 
+        $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : 'events';
+        $tab = in_array($tab, ['events', 'settings', 'logs'], true) ? $tab : 'events';
+
         $events = $this->get_cron_events();
         $schedules = wp_get_schedules();
         $now = $this->now();
 
         echo '<div class="wrap">';
         echo '<h1>' . esc_html__('Cron Manager', 'gd-cron') . '</h1>';
-        echo '<div class="gd-cron-panel">';
-        $this->render_events_table($events, $now);
-        echo '</div>';
-        echo '<div class="gd-cron-panel">';
-        $this->render_settings_form($schedules);
-        echo '</div>';
-        echo '<div class="gd-cron-panel">';
-        $this->render_log_panel($this->get_log());
-        echo '</div>';
+        $this->render_notices();
+
+        $base_url = admin_url('tools.php?page=' . self::MENU_SLUG);
+        echo '<h2 class="nav-tab-wrapper">';
+        echo '<a href="' . esc_url(add_query_arg('tab', 'events', $base_url)) . '" class="nav-tab ' . ($tab === 'events' ? 'nav-tab-active' : '') . '">' . esc_html__('Events', 'gd-cron') . '</a>';
+        echo '<a href="' . esc_url(add_query_arg('tab', 'settings', $base_url)) . '" class="nav-tab ' . ($tab === 'settings' ? 'nav-tab-active' : '') . '">' . esc_html__('Settings', 'gd-cron') . '</a>';
+        echo '<a href="' . esc_url(add_query_arg('tab', 'logs', $base_url)) . '" class="nav-tab ' . ($tab === 'logs' ? 'nav-tab-active' : '') . '">' . esc_html__('Logs', 'gd-cron') . '</a>';
+        echo '</h2>';
+
+        if ($tab === 'events') {
+            echo '<div class="gd-cron-panel">';
+            $this->render_events_table($events, $now);
+            echo '</div>';
+        } elseif ($tab === 'settings') {
+            echo '<div class="gd-cron-panel">';
+            $this->render_settings_form($schedules);
+            echo '</div>';
+        } else {
+            echo '<div class="gd-cron-panel">';
+            $this->render_log_panel($this->get_log());
+            echo '</div>';
+        }
         echo '</div>';
         echo '</div>';
     }
