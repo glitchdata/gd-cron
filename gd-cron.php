@@ -18,6 +18,9 @@ class GDCronManager
     private const NONCE_ACTION = 'gd-cron-action';
     private const OPTION_KEY = 'gd_cron_settings';
     private const LOG_OPTION_KEY = 'gd_cron_log';
+    private const LOG_TABLE = 'gd_cron_logs';
+    private const LOG_DB_VERSION_KEY = 'gd_cron_log_db_version';
+    private const LOG_DB_VERSION = '1.0.0';
     private array $notices = [];
     private array $settings = [];
 
@@ -27,6 +30,12 @@ class GDCronManager
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'add_plugin_link']);
         add_action('admin_head', [$this, 'hide_edit_submenu']);
+        register_activation_hook(__FILE__, [self::class, 'activate']);
+    }
+
+    public static function activate(): void
+    {
+        self::maybe_create_log_table();
     }
 
     public function register_menu(): void
@@ -83,6 +92,7 @@ class GDCronManager
 
     public function render_page(): void
     {
+                self::maybe_create_log_table();
         if (!current_user_can('manage_options')) {
             wp_die(__('You do not have permission to access this page.', 'gd-cron'));
         }
@@ -702,31 +712,26 @@ class GDCronManager
 
     private function log_event(string $action, string $hook, string $note = ''): void
     {
-        $log = get_option(self::LOG_OPTION_KEY, []);
-        if (!is_array($log)) {
-            $log = [];
-        }
-
-        $entry = [
-            'time' => $this->now(),
-            'action' => $action,
-            'hook' => $hook,
-            'note' => $note,
-        ];
-
-        array_unshift($log, $entry);
-        $log = array_slice($log, 0, 50);
-
-        update_option(self::LOG_OPTION_KEY, $log, false);
+        global $wpdb;
+        $table = $this->get_log_table_name($wpdb);
+        $wpdb->insert(
+            $table,
+            [
+                'hook' => $hook,
+                'action' => $action,
+                'note' => $note,
+                'created_at' => gmdate('Y-m-d H:i:s', $this->now()),
+            ],
+            ['%s', '%s', '%s', '%s']
+        );
     }
 
     private function get_log(): array
     {
-        $log = get_option(self::LOG_OPTION_KEY, []);
-        if (!is_array($log)) {
-            return [];
-        }
-        return $log;
+        global $wpdb;
+        $table = $this->get_log_table_name($wpdb);
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT id, hook, action, note, created_at FROM {$table} ORDER BY id DESC LIMIT %d", 200), ARRAY_A);
+        return is_array($rows) ? $rows : [];
     }
 
     private function render_notices(): void
@@ -765,15 +770,13 @@ class GDCronManager
         echo '</tr></thead><tbody>';
 
         foreach ($log as $entry) {
-            $time = isset($entry['time']) ? (int) $entry['time'] : 0;
+            $time_display = !empty($entry['created_at']) ? esc_html(wp_date('Y-m-d H:i:s', strtotime($entry['created_at']))) : '';
             $action = isset($entry['action']) ? (string) $entry['action'] : '';
             $hook = isset($entry['hook']) ? (string) $entry['hook'] : '';
             $note = isset($entry['note']) ? (string) $entry['note'] : '';
 
-            $time_display = $time ? wp_date('Y-m-d H:i:s', $time) : '';
-
             echo '<tr>';
-            echo '<td>' . esc_html($time_display) . '</td>';
+            echo '<td>' . $time_display . '</td>';
             echo '<td>' . esc_html(ucfirst($action)) . '</td>';
             echo '<td><code>' . esc_html($hook) . '</code></td>';
             echo '<td>' . esc_html($note) . '</td>';
@@ -790,6 +793,7 @@ class GDCronManager
         }
 
         $this->settings = $this->get_settings();
+        self::maybe_create_log_table();
         $this->handle_actions();
 
         $event = $this->find_event_from_request('get', true);
@@ -868,6 +872,38 @@ class GDCronManager
         }
 
         return array_merge($defaults, $saved);
+    }
+
+    private static function get_log_table_name($wpdb): string
+    {
+        return $wpdb->prefix . self::LOG_TABLE;
+    }
+
+    private static function maybe_create_log_table(): void
+    {
+        global $wpdb;
+        $installed = get_option(self::LOG_DB_VERSION_KEY);
+        if ($installed === self::LOG_DB_VERSION) {
+            return;
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $table = self::get_log_table_name($wpdb);
+        $charset_collate = $wpdb->get_charset_collate();
+        $sql = "CREATE TABLE {$table} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            hook varchar(191) NOT NULL,
+            action varchar(50) NOT NULL,
+            note text NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY hook (hook),
+            KEY action (action),
+            KEY created_at (created_at)
+        ) {$charset_collate};";
+
+        dbDelta($sql);
+        update_option(self::LOG_DB_VERSION_KEY, self::LOG_DB_VERSION, false);
     }
 }
 
