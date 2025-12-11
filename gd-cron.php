@@ -99,8 +99,6 @@ class GDCronManager
         $this->render_events_table($events, $now);
         echo '</div>';
         echo '<div class="gd-cron-panel">';
-        $this->render_create_form($schedules, $now);
-        echo '<hr class="gd-cron-divider">';
         $this->render_settings_form($schedules);
         echo '</div>';
         echo '</div>';
