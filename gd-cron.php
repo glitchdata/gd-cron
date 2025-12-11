@@ -90,8 +90,8 @@ class GDCronManager
         $this->settings = $this->get_settings();
         $this->handle_actions();
 
-        $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : 'events';
-        $tab = in_array($tab, ['events', 'settings', 'logs'], true) ? $tab : 'events';
+        $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : 'dashboard';
+        $tab = in_array($tab, ['dashboard', 'events', 'settings', 'logs'], true) ? $tab : 'dashboard';
 
         $events = $this->get_cron_events();
         $schedules = wp_get_schedules();
@@ -102,6 +102,7 @@ class GDCronManager
         echo '<h1 class="wp-heading-inline">' . esc_html__('GD Cron', 'gd-cron') . '</h1>';
         $base_url = admin_url('admin.php?page=' . self::MENU_SLUG);
         echo '<h2 class="nav-tab-wrapper">';
+        echo '<a href="' . esc_url(add_query_arg('tab', 'dashboard', $base_url)) . '" class="nav-tab ' . ($tab === 'dashboard' ? 'nav-tab-active' : '') . '">' . esc_html__('Dashboard', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'events', $base_url)) . '" class="nav-tab ' . ($tab === 'events' ? 'nav-tab-active' : '') . '">' . esc_html__('Events', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'settings', $base_url)) . '" class="nav-tab ' . ($tab === 'settings' ? 'nav-tab-active' : '') . '">' . esc_html__('Settings', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'logs', $base_url)) . '" class="nav-tab ' . ($tab === 'logs' ? 'nav-tab-active' : '') . '">' . esc_html__('Logs', 'gd-cron') . '</a>';
@@ -112,7 +113,9 @@ class GDCronManager
             echo '<h1 class="gd-audit__section-title">' . esc_html__('Settings', 'gd-cron') . '</h1>';
         }
 
-        if ($tab === 'events') {
+        if ($tab === 'dashboard') {
+            $this->render_dashboard($events, $now);
+        } elseif ($tab === 'events') {
             $this->render_events_table($events, $now);
         } elseif ($tab === 'settings') {
             $this->render_settings_form($schedules);
@@ -253,6 +256,60 @@ class GDCronManager
             $this->render_action_buttons($event);
             echo '</td>';
             echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+    }
+
+    private function render_dashboard(array $events, int $now): void
+    {
+        $total_events = count($events);
+        $unique_hooks = count(array_unique(array_map(fn($e) => $e['hook'], $events)));
+        $due_count = count(array_filter($events, fn($e) => $e['timestamp'] <= $now));
+
+        $next_event = null;
+        foreach ($events as $event) {
+            if ($event['timestamp'] > $now) {
+                $next_event = $event;
+                break;
+            }
+        }
+
+        echo '<h2>' . esc_html__('Dashboard', 'gd-cron') . '</h2>';
+        echo '<div class="gd-cron-stats">';
+        echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Total events', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($total_events) . '</div></div>';
+        echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Unique hooks', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($unique_hooks) . '</div></div>';
+        echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Due/overdue', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($due_count) . '</div></div>';
+        if ($next_event) {
+            $next_time = esc_html(get_date_from_gmt(gmdate('Y-m-d H:i:s', $next_event['timestamp']), 'Y-m-d H:i:s'));
+            $next_hook = esc_html($next_event['hook']);
+            echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Next run', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . $next_time . '<br><span class="gd-cron-sub">' . $next_hook . '</span></div></div>';
+        }
+        echo '</div>';
+
+        echo '<h3>' . esc_html__('Upcoming events', 'gd-cron') . '</h3>';
+        echo '<table class="widefat fixed striped">';
+        echo '<thead><tr>';
+        echo '<th>' . esc_html__('Hook', 'gd-cron') . '</th>';
+        echo '<th>' . esc_html__('Next Run', 'gd-cron') . '</th>';
+        echo '<th>' . esc_html__('Recurrence', 'gd-cron') . '</th>';
+        echo '</tr></thead><tbody>';
+
+        $count = 0;
+        foreach ($events as $event) {
+            if (++$count > 5) {
+                break;
+            }
+            $date = esc_html(get_date_from_gmt(gmdate('Y-m-d H:i:s', $event['timestamp']), 'Y-m-d H:i:s'));
+            echo '<tr>';
+            echo '<td><code>' . esc_html($event['hook']) . '</code></td>';
+            echo '<td>' . $date . '</td>';
+            echo '<td>' . esc_html($event['schedule_label']) . '</td>';
+            echo '</tr>';
+        }
+
+        if ($total_events === 0) {
+            echo '<tr><td colspan="3">' . esc_html__('No cron events found.', 'gd-cron') . '</td></tr>';
         }
 
         echo '</tbody></table>';
