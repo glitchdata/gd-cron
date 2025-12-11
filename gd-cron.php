@@ -23,6 +23,7 @@ class GDCronManager
     {
         add_action('admin_menu', [$this, 'register_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
+        add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'add_plugin_link']);
     }
 
     public function register_menu(): void
@@ -425,6 +426,13 @@ class GDCronManager
             echo '<p>' . esc_html($notice['message']) . '</p>';
             echo '</div>';
         }
+    }
+
+    public function add_plugin_link(array $links): array
+    {
+        $url = admin_url('tools.php?page=' . self::MENU_SLUG);
+        $links[] = '<a href="' . esc_url($url) . '">' . esc_html__('Open Cron Manager', 'gd-cron') . '</a>';
+        return $links;
     }
 
     private function render_settings_form(array $schedules): void
