@@ -14,6 +14,7 @@ if (!defined('ABSPATH')) {
 class GDCronManager
 {
     private const MENU_SLUG = 'gd-cron-manager';
+    private const EDIT_SLUG = 'gd-cron-manager-edit';
     private const NONCE_ACTION = 'gd-cron-action';
     private const OPTION_KEY = 'gd_cron_settings';
     private array $notices = [];
@@ -24,6 +25,7 @@ class GDCronManager
         add_action('admin_menu', [$this, 'register_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'add_plugin_link']);
+        add_action('admin_head', [$this, 'hide_edit_submenu']);
     }
 
     public function register_menu(): void
@@ -35,11 +37,25 @@ class GDCronManager
             self::MENU_SLUG,
             [$this, 'render_page']
         );
+
+        add_submenu_page(
+            'tools.php',
+            __('Edit Cron Event', 'gd-cron'),
+            __('Edit Cron Event', 'gd-cron'),
+            'manage_options',
+            self::EDIT_SLUG,
+            [$this, 'render_edit_page']
+        );
     }
 
     public function enqueue_assets(string $hook): void
     {
-        if ($hook !== 'tools_page_' . self::MENU_SLUG) {
+        $allowed = [
+            'tools_page_' . self::MENU_SLUG,
+            'tools_page_' . self::EDIT_SLUG,
+        ];
+
+        if (!in_array($hook, $allowed, true)) {
             return;
         }
 
@@ -80,7 +96,7 @@ class GDCronManager
         $this->render_notices();
         echo '<div class="gd-cron-grid">';
         echo '<div class="gd-cron-panel">';
-        $this->render_events_table($events, $now, $schedules);
+        $this->render_events_table($events, $now);
         echo '</div>';
         echo '<div class="gd-cron-panel">';
         $this->render_create_form($schedules, $now);
@@ -91,7 +107,7 @@ class GDCronManager
         echo '</div>';
     }
 
-    private function render_events_table(array $events, int $now, array $schedules): void
+    private function render_events_table(array $events, int $now): void
     {
         echo '<h2>' . esc_html__('Scheduled Events', 'gd-cron') . '</h2>';
         echo '<p class="description">' . esc_html__('Run or delete cron events from here. Use cautiously on production sites.', 'gd-cron') . '</p>';
@@ -126,7 +142,6 @@ class GDCronManager
             $this->render_action_buttons($event);
             echo '</td>';
             echo '</tr>';
-            $this->render_edit_row($event, $schedules, $now);
         }
 
         echo '</tbody></table>';
@@ -198,7 +213,14 @@ class GDCronManager
         echo '<button class="button button-secondary gd-cron-delete"' . $confirm_attr . '>' . esc_html__('Delete', 'gd-cron') . '</button>';
         echo '</form>';
 
-        echo '<button type="button" class="button gd-cron-edit-toggle" data-target="gd-cron-edit-' . esc_attr($event['sig']) . '">' . esc_html__('Edit', 'gd-cron') . '</button>';
+        $edit_url = add_query_arg([
+            'page' => self::EDIT_SLUG,
+            'timestamp' => $event['timestamp'],
+            'hook' => $event['hook'],
+            'sig' => $event['sig'],
+        ], admin_url('tools.php'));
+
+        echo '<a class="button" href="' . esc_url($edit_url) . '">' . esc_html__('Edit', 'gd-cron') . '</a>';
         echo '</div>';
     }
 
@@ -233,7 +255,7 @@ class GDCronManager
 
     private function handle_run(): void
     {
-        $event = $this->find_event_from_request();
+        $event = $this->find_event_from_request('post', true);
         if (!$event) {
             $this->add_notice(__('Event not found.', 'gd-cron'), 'error');
             return;
@@ -423,6 +445,7 @@ class GDCronManager
                         'schedule_label' => (string) $schedule_label,
                         'args' => is_array($args) ? $args : [],
                         'sig' => (string) $sig,
+                        'raw_schedule' => $schedule_raw,
                     ];
                 }
             }
@@ -435,20 +458,32 @@ class GDCronManager
         return $events;
     }
 
-    private function find_event_from_request(): ?array
+    private function find_event_from_request(string $method = 'post', bool $allow_fallback = false): ?array
     {
-        $timestamp = isset($_POST['timestamp']) ? absint($_POST['timestamp']) : 0;
-        $hook = isset($_POST['hook']) ? sanitize_text_field(wp_unslash($_POST['hook'])) : '';
-        $sig = isset($_POST['sig']) ? sanitize_text_field(wp_unslash($_POST['sig'])) : '';
+        $source = $method === 'get' ? $_GET : $_POST;
+
+        $timestamp = isset($source['timestamp']) ? absint($source['timestamp']) : 0;
+        $hook = isset($source['hook']) ? sanitize_text_field(wp_unslash($source['hook'])) : '';
+        $sig = isset($source['sig']) ? sanitize_text_field(wp_unslash($source['sig'])) : '';
 
         if (!$timestamp || !$hook || !$sig) {
-            return null;
+            if (!$allow_fallback) {
+                return null;
+            }
         }
 
         $events = $this->get_cron_events();
         foreach ($events as $event) {
             if ((int) $event['timestamp'] === $timestamp && $event['hook'] === $hook && $event['sig'] === $sig) {
                 return $event;
+            }
+        }
+
+        if ($allow_fallback && $hook && $sig) {
+            foreach ($events as $event) {
+                if ($event['hook'] === $hook && $event['sig'] === $sig) {
+                    return $event;
+                }
             }
         }
 
@@ -537,50 +572,76 @@ class GDCronManager
         echo '<label class="gd-cron-field">';
         echo '<span>' . esc_html__('Arguments (JSON)', 'gd-cron') . '</span>';
         $args_value = !empty($event['args']) ? wp_json_encode($event['args']) : '';
-        echo '<textarea name="args" rows="2" placeholder="[\"foo\", 123]">' . esc_textarea($args_value) . '</textarea>';
-        echo '</label>';
-        echo '</div>';
 
-        echo '<button type="submit" class="button button-primary">' . esc_html__('Save changes', 'gd-cron') . '</button> ';
-        echo '<button type="button" class="button gd-cron-edit-cancel" data-target="' . esc_attr($row_id) . '">' . esc_html__('Cancel', 'gd-cron') . '</button>';
-        echo '</form>';
-        echo '</td>';
-        echo '</tr>';
-    }
+        public function render_edit_page(): void
+        {
+            if (!current_user_can('manage_options')) {
+                wp_die(__('You do not have permission to access this page.', 'gd-cron'));
+            }
 
-    private function render_settings_form(array $schedules): void
-    {
-        $settings = $this->settings;
-        $offset = (int) ($settings['default_first_run_offset'] ?? 300);
-        $schedule = $settings['default_schedule'] ?? 'once';
-        $require_confirm = !empty($settings['require_delete_confirmation']);
+            $this->settings = $this->get_settings();
+            $this->handle_actions();
 
-        echo '<h2>' . esc_html__('Settings', 'gd-cron') . '</h2>';
-        echo '<form method="post" class="gd-cron-form">';
-        wp_nonce_field(self::NONCE_ACTION);
-        echo '<input type="hidden" name="gd_cron_action" value="save_settings">';
+            $event = $this->find_event_from_request('get', true);
+            $schedules = wp_get_schedules();
 
-        echo '<label class="gd-cron-field">';
-        echo '<span>' . esc_html__('Default first run offset (seconds)', 'gd-cron') . '</span>';
-        echo '<input type="number" min="60" step="60" name="default_first_run_offset" value="' . esc_attr($offset) . '">';
-        echo '<p class="description">' . esc_html__('Used when the first run field is left empty.', 'gd-cron') . '</p>';
-        echo '</label>';
+            echo '<div class="wrap">';
+            echo '<h1>' . esc_html__('Edit Cron Event', 'gd-cron') . '</h1>';
+            $this->render_notices();
 
-        echo '<label class="gd-cron-field">';
-        echo '<span>' . esc_html__('Default recurrence', 'gd-cron') . '</span>';
-        echo '<select name="default_schedule">';
-        echo '<option value="once"' . selected($schedule, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
-        foreach ($schedules as $key => $schedule_data) {
-            $label = $schedule_data['display'] ?? $key;
-            echo '<option value="' . esc_attr($key) . '"' . selected($schedule, $key, false) . '>' . esc_html($label) . '</option>';
+            if (!$event) {
+                echo '<p>' . esc_html__('Event not found. It may have just run or been removed.', 'gd-cron') . '</p>';
+                echo '<p><a class="button" href="' . esc_url(admin_url('tools.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Back to Cron Manager', 'gd-cron') . '</a></p>';
+                echo '</div>';
+                return;
+            }
+
+            $current_dt = wp_date('Y-m-d H:i', $event['timestamp']);
+            $current_schedule = $event['schedule'];
+
+            echo '<form method="post" class="gd-cron-form">';
+            wp_nonce_field(self::NONCE_ACTION);
+            echo '<input type="hidden" name="gd_cron_action" value="edit">';
+            echo '<input type="hidden" name="timestamp" value="' . esc_attr($event['timestamp']) . '">';
+            echo '<input type="hidden" name="hook" value="' . esc_attr($event['hook']) . '">';
+            echo '<input type="hidden" name="sig" value="' . esc_attr($event['sig']) . '">';
+
+            echo '<table class="form-table" role="presentation">';
+            echo '<tr><th scope="row">' . esc_html__('Hook', 'gd-cron') . '</th><td><code>' . esc_html($event['hook']) . '</code></td></tr>';
+
+            echo '<tr><th scope="row">' . esc_html__('First run (local time)', 'gd-cron') . '</th><td>';
+            echo '<input type="text" name="first_run" value="' . esc_attr($current_dt) . '" class="regular-text" placeholder="2025-12-11 14:30">';
+            echo '</td></tr>';
+
+            echo '<tr><th scope="row">' . esc_html__('Recurrence', 'gd-cron') . '</th><td>';
+            echo '<select name="schedule">';
+            echo '<option value="once"' . selected($current_schedule, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
+            foreach ($schedules as $key => $schedule_data) {
+                $label = $schedule_data['display'] ?? $key;
+                echo '<option value="' . esc_attr($key) . '"' . selected($current_schedule, $key, false) . '>' . esc_html($label) . '</option>';
+            }
+            echo '</select>';
+            echo '</td></tr>';
+
+            echo '<tr><th scope="row">' . esc_html__('Arguments (JSON)', 'gd-cron') . '</th><td>';
+            $args_value = !empty($event['args']) ? wp_json_encode($event['args']) : '';
+            echo '<textarea name="args" rows="3" class="large-text code" placeholder="[\"foo\", 123]">' . esc_textarea($args_value) . '</textarea>';
+            echo '</td></tr>';
+
+            echo '</table>';
+
+            echo '<p class="submit">';
+            echo '<button type="submit" class="button button-primary">' . esc_html__('Save changes', 'gd-cron') . '</button> ';
+            echo '<a class="button" href="' . esc_url(admin_url('tools.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Cancel', 'gd-cron') . '</a>';
+            echo '</p>';
+            echo '</form>';
+            echo '</div>';
         }
-        echo '</select>';
-        echo '</label>';
 
-        echo '<label class="gd-cron-field">';
-        echo '<input type="checkbox" name="require_delete_confirmation" value="1"' . checked($require_confirm, true, false) . '> ' . esc_html__('Ask for confirmation before deleting an event', 'gd-cron');
-        echo '</label>';
-
+        public function hide_edit_submenu(): void
+        {
+            remove_submenu_page('tools.php', self::EDIT_SLUG);
+        }
         echo '<button type="submit" class="button button-primary">' . esc_html__('Save settings', 'gd-cron') . '</button>';
         echo '</form>';
     }
