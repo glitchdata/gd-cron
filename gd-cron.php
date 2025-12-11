@@ -117,9 +117,7 @@ class GDCronManager
         } elseif ($tab === 'settings') {
             $this->render_settings_form($schedules);
         } else {
-            echo '<div class="gd-cron-panel">';
             $this->render_log_panel($this->get_log());
-            echo '</div>';
         }
         echo '</div>';
         echo '</div>';
