@@ -1,0 +1,60 @@
+/* Minimal admin styling for GD Cron Manager */
+.gd-cron-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+}
+
+.gd-cron-panel {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 16px;
+    border-radius: 4px;
+}
+
+.gd-cron-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.gd-cron-inline {
+    display: inline;
+}
+
+.gd-cron-field {
+    display: block;
+    margin-bottom: 12px;
+}
+
+.gd-cron-field span {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.gd-cron-form textarea,
+.gd-cron-form input,
+.gd-cron-form select {
+    width: 100%;
+    max-width: 100%;
+}
+
+.column-actions {
+    width: 140px;
+}
+
+.gd-cron-args {
+    word-break: break-word;
+    max-width: 280px;
+}
+
+.gd-cron-sub {
+    color: #666;
+    font-size: 12px;
+}
+
+@media (max-width: 960px) {
+    .gd-cron-grid {
+        grid-template-columns: 1fr;
+    }
+}
