@@ -266,6 +266,8 @@ class GDCronManager
         $total_events = count($events);
         $unique_hooks = count(array_unique(array_map(fn($e) => $e['hook'], $events)));
         $due_count = count(array_filter($events, fn($e) => $e['timestamp'] <= $now));
+        $recurring_count = count(array_filter($events, fn($e) => $e['schedule'] !== 'once'));
+        $one_off_count = $total_events - $recurring_count;
 
         $next_event = null;
         foreach ($events as $event) {
@@ -280,6 +282,8 @@ class GDCronManager
         echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Total events', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($total_events) . '</div></div>';
         echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Unique hooks', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($unique_hooks) . '</div></div>';
         echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Due/overdue', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($due_count) . '</div></div>';
+        echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('Recurring', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($recurring_count) . '</div></div>';
+        echo '<div class="gd-cron-stat"><div class="gd-cron-stat__label">' . esc_html__('One-off', 'gd-cron') . '</div><div class="gd-cron-stat__value">' . esc_html($one_off_count) . '</div></div>';
         if ($next_event) {
             $next_time = esc_html(get_date_from_gmt(gmdate('Y-m-d H:i:s', $next_event['timestamp']), 'Y-m-d H:i:s'));
             $next_hook = esc_html($next_event['hook']);
