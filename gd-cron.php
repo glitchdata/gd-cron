@@ -322,6 +322,9 @@ class GDCronManager
         $raw = wp_unslash($_POST);
         $args_raw = isset($raw['args']) ? $raw['args'] : '';
         $schedule = isset($raw['schedule']) ? sanitize_text_field($raw['schedule']) : $event['schedule'];
+        if ($schedule === 'single') {
+            $schedule = 'once';
+        }
         $first_run_raw = isset($raw['first_run']) ? sanitize_text_field($raw['first_run']) : '';
 
         $args = [];
@@ -406,8 +409,9 @@ class GDCronManager
         foreach ($crons as $timestamp => $hooks) {
             foreach ($hooks as $hook => $instances) {
                 foreach ($instances as $sig => $data) {
-                    $schedule = $data['schedule'] ?? 'single';
-                    $schedule_label = $schedule === 'single'
+                    $schedule_raw = $data['schedule'] ?? 'single';
+                    $schedule = $schedule_raw === 'single' ? 'once' : $schedule_raw;
+                    $schedule_label = $schedule === 'once'
                         ? __('Once', 'gd-cron')
                         : ($schedules[$schedule]['display'] ?? $schedule);
 
@@ -520,11 +524,12 @@ class GDCronManager
 
         echo '<label class="gd-cron-field">';
         echo '<span>' . esc_html__('Recurrence', 'gd-cron') . '</span>';
+        $current_schedule = $event['schedule'] === 'single' ? 'once' : $event['schedule'];
         echo '<select name="schedule">';
-        echo '<option value="once"' . selected($event['schedule'], 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
+        echo '<option value="once"' . selected($current_schedule, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
         foreach ($schedules as $key => $schedule_data) {
             $label = $schedule_data['display'] ?? $key;
-            echo '<option value="' . esc_attr($key) . '"' . selected($event['schedule'], $key, false) . '>' . esc_html($label) . '</option>';
+            echo '<option value="' . esc_attr($key) . '"' . selected($current_schedule, $key, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';
         echo '</label>';
