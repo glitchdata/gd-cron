@@ -97,7 +97,7 @@ class GDCronManager
         $schedules = wp_get_schedules();
         $now = $this->now();
 
-        echo '<div class="wrap">';
+        echo '<div class="wrap gd-audit gd-audit-settings">';
         echo '<div class="gd-audit__tabs">';
         echo '<h1 class="wp-heading-inline">' . esc_html__('GD Cron', 'gd-cron') . '</h1>';
         $base_url = admin_url('admin.php?page=' . self::MENU_SLUG);
