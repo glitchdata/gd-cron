@@ -17,6 +17,7 @@ class GDCronManager
     private const EDIT_SLUG = 'gd-cron-manager-edit';
     private const NONCE_ACTION = 'gd-cron-action';
     private const OPTION_KEY = 'gd_cron_settings';
+    private const LOG_OPTION_KEY = 'gd_cron_log';
     private array $notices = [];
     private array $settings = [];
 
@@ -98,6 +99,9 @@ class GDCronManager
         echo '</div>';
         echo '<div class="gd-cron-panel">';
         $this->render_settings_form($schedules);
+        echo '</div>';
+        echo '<div class="gd-cron-panel">';
+        $this->render_log_panel($this->get_log());
         echo '</div>';
         echo '</div>';
         echo '</div>';
@@ -297,6 +301,7 @@ class GDCronManager
         // Run the hook immediately.
         do_action_ref_array($event['hook'], $event['args']);
         $this->add_notice(sprintf(__('Ran hook %s.', 'gd-cron'), esc_html($event['hook'])), 'success');
+        $this->log_event('run', $event['hook'], 'Ran now from admin');
     }
 
     private function handle_delete(): void
@@ -310,6 +315,7 @@ class GDCronManager
         $unscheduled = wp_unschedule_event($event['timestamp'], $event['hook'], $event['args']);
         if ($unscheduled) {
             $this->add_notice(__('Event removed.', 'gd-cron'), 'success');
+            $this->log_event('delete', $event['hook'], 'Removed specific instance');
         } else {
             $this->add_notice(__('Unable to remove event.', 'gd-cron'), 'error');
         }
@@ -361,6 +367,8 @@ class GDCronManager
 
         if ($scheduled) {
             $this->add_notice(__('Event scheduled.', 'gd-cron'), 'success');
+            $note = 'Schedule ' . $schedule . ' at ' . wp_date('Y-m-d H:i:s', $timestamp);
+            $this->log_event('create', $hook, $note);
         } else {
             $this->add_notice(__('Unable to schedule event. It may already exist with the same arguments.', 'gd-cron'), 'error');
         }
@@ -421,6 +429,8 @@ class GDCronManager
 
         if ($unscheduled && $scheduled) {
             $this->add_notice(__('Event updated.', 'gd-cron'), 'success');
+            $note = 'New schedule ' . $schedule . ' at ' . wp_date('Y-m-d H:i:s', $timestamp);
+            $this->log_event('edit', $event['hook'], $note);
         } else {
             $this->add_notice(__('Unable to update event.', 'gd-cron'), 'error');
         }
@@ -553,6 +563,35 @@ class GDCronManager
         ];
     }
 
+    private function log_event(string $action, string $hook, string $note = ''): void
+    {
+        $log = get_option(self::LOG_OPTION_KEY, []);
+        if (!is_array($log)) {
+            $log = [];
+        }
+
+        $entry = [
+            'time' => $this->now(),
+            'action' => $action,
+            'hook' => $hook,
+            'note' => $note,
+        ];
+
+        array_unshift($log, $entry);
+        $log = array_slice($log, 0, 50);
+
+        update_option(self::LOG_OPTION_KEY, $log, false);
+    }
+
+    private function get_log(): array
+    {
+        $log = get_option(self::LOG_OPTION_KEY, []);
+        if (!is_array($log)) {
+            return [];
+        }
+        return $log;
+    }
+
     private function render_notices(): void
     {
         foreach ($this->notices as $notice) {
@@ -568,6 +607,43 @@ class GDCronManager
         $url = admin_url('tools.php?page=' . self::MENU_SLUG);
         $links[] = '<a href="' . esc_url($url) . '">' . esc_html__('Open Cron Manager', 'gd-cron') . '</a>';
         return $links;
+    }
+
+    private function render_log_panel(array $log): void
+    {
+        echo '<h2>' . esc_html__('Event Log', 'gd-cron') . '</h2>';
+        echo '<p class="description">' . esc_html__('Recent actions performed through Cron Manager.', 'gd-cron') . '</p>';
+
+        if (empty($log)) {
+            echo '<p>' . esc_html__('No log entries yet.', 'gd-cron') . '</p>';
+            return;
+        }
+
+        echo '<table class="widefat fixed striped">';
+        echo '<thead><tr>';
+        echo '<th>' . esc_html__('Time', 'gd-cron') . '</th>';
+        echo '<th>' . esc_html__('Action', 'gd-cron') . '</th>';
+        echo '<th>' . esc_html__('Hook', 'gd-cron') . '</th>';
+        echo '<th>' . esc_html__('Details', 'gd-cron') . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($log as $entry) {
+            $time = isset($entry['time']) ? (int) $entry['time'] : 0;
+            $action = isset($entry['action']) ? (string) $entry['action'] : '';
+            $hook = isset($entry['hook']) ? (string) $entry['hook'] : '';
+            $note = isset($entry['note']) ? (string) $entry['note'] : '';
+
+            $time_display = $time ? wp_date('Y-m-d H:i:s', $time) : '';
+
+            echo '<tr>';
+            echo '<td>' . esc_html($time_display) . '</td>';
+            echo '<td>' . esc_html(ucfirst($action)) . '</td>';
+            echo '<td><code>' . esc_html($hook) . '</code></td>';
+            echo '<td>' . esc_html($note) . '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
     }
 
     public function render_edit_page(): void
