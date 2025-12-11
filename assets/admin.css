@@ -23,6 +23,21 @@
     gap: 6px;
 }
 
+.gd-cron-edit-row {
+    background: #f8f9fa;
+}
+
+.gd-cron-edit-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin-bottom: 12px;
+}
+
+.gd-cron-inline-form {
+    margin: 0;
+}
+
 .gd-cron-inline {
     display: inline;
 }

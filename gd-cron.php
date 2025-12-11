@@ -80,7 +80,7 @@ class GDCronManager
         $this->render_notices();
         echo '<div class="gd-cron-grid">';
         echo '<div class="gd-cron-panel">';
-        $this->render_events_table($events, $now);
+        $this->render_events_table($events, $now, $schedules);
         echo '</div>';
         echo '<div class="gd-cron-panel">';
         $this->render_create_form($schedules, $now);
@@ -91,7 +91,7 @@ class GDCronManager
         echo '</div>';
     }
 
-    private function render_events_table(array $events, int $now): void
+    private function render_events_table(array $events, int $now, array $schedules): void
     {
         echo '<h2>' . esc_html__('Scheduled Events', 'gd-cron') . '</h2>';
         echo '<p class="description">' . esc_html__('Run or delete cron events from here. Use cautiously on production sites.', 'gd-cron') . '</p>';
@@ -126,6 +126,7 @@ class GDCronManager
             $this->render_action_buttons($event);
             echo '</td>';
             echo '</tr>';
+            $this->render_edit_row($event, $schedules, $now);
         }
 
         echo '</tbody></table>';
@@ -196,6 +197,8 @@ class GDCronManager
             : '';
         echo '<button class="button button-secondary gd-cron-delete"' . $confirm_attr . '>' . esc_html__('Delete', 'gd-cron') . '</button>';
         echo '</form>';
+
+        echo '<button type="button" class="button gd-cron-edit-toggle" data-target="gd-cron-edit-' . esc_attr($event['sig']) . '">' . esc_html__('Edit', 'gd-cron') . '</button>';
         echo '</div>';
     }
 
@@ -221,6 +224,9 @@ class GDCronManager
                 break;
             case 'save_settings':
                 $this->handle_save_settings();
+                break;
+            case 'edit':
+                $this->handle_edit();
                 break;
         }
     }
@@ -302,6 +308,63 @@ class GDCronManager
             $this->add_notice(__('Event scheduled.', 'gd-cron'), 'success');
         } else {
             $this->add_notice(__('Unable to schedule event. It may already exist with the same arguments.', 'gd-cron'), 'error');
+        }
+    }
+
+    private function handle_edit(): void
+    {
+        $event = $this->find_event_from_request();
+        if (!$event) {
+            $this->add_notice(__('Event not found.', 'gd-cron'), 'error');
+            return;
+        }
+
+        $raw = wp_unslash($_POST);
+        $args_raw = isset($raw['args']) ? $raw['args'] : '';
+        $schedule = isset($raw['schedule']) ? sanitize_text_field($raw['schedule']) : $event['schedule'];
+        $first_run_raw = isset($raw['first_run']) ? sanitize_text_field($raw['first_run']) : '';
+
+        $args = [];
+        if (!empty($args_raw)) {
+            $decoded = json_decode($args_raw, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->add_notice(__('Arguments must be valid JSON.', 'gd-cron'), 'error');
+                return;
+            }
+            $args = $decoded;
+        }
+
+        $timestamp = $this->parse_datetime($first_run_raw);
+        if (!$timestamp) {
+            $this->add_notice(__('Invalid date/time format.', 'gd-cron'), 'error');
+            return;
+        }
+
+        $now = $this->now();
+        if ($timestamp < $now) {
+            $timestamp = $now + 60;
+        }
+
+        $schedules = wp_get_schedules();
+        if ($schedule !== 'once' && !isset($schedules[$schedule])) {
+            $this->add_notice(__('Unknown schedule.', 'gd-cron'), 'error');
+            return;
+        }
+
+        // Remove old event.
+        $unscheduled = wp_unschedule_event($event['timestamp'], $event['hook'], $event['args']);
+
+        // Schedule new event.
+        if ($schedule === 'once') {
+            $scheduled = wp_schedule_single_event($timestamp, $event['hook'], $args);
+        } else {
+            $scheduled = wp_schedule_event($timestamp, $schedule, $event['hook'], $args);
+        }
+
+        if ($unscheduled && $scheduled) {
+            $this->add_notice(__('Event updated.', 'gd-cron'), 'success');
+        } else {
+            $this->add_notice(__('Unable to update event.', 'gd-cron'), 'error');
         }
     }
 
@@ -433,6 +496,51 @@ class GDCronManager
         $url = admin_url('tools.php?page=' . self::MENU_SLUG);
         $links[] = '<a href="' . esc_url($url) . '">' . esc_html__('Open Cron Manager', 'gd-cron') . '</a>';
         return $links;
+    }
+
+    private function render_edit_row(array $event, array $schedules, int $now): void
+    {
+        $row_id = 'gd-cron-edit-' . $event['sig'];
+        $current_dt = wp_date('Y-m-d H:i', $event['timestamp']);
+
+        echo '<tr id="' . esc_attr($row_id) . '" class="gd-cron-edit-row" style="display:none;">';
+        echo '<td colspan="5">';
+        echo '<form method="post" class="gd-cron-form gd-cron-inline-form">';
+        wp_nonce_field(self::NONCE_ACTION);
+        echo '<input type="hidden" name="gd_cron_action" value="edit">';
+        echo '<input type="hidden" name="timestamp" value="' . esc_attr($event['timestamp']) . '">';
+        echo '<input type="hidden" name="hook" value="' . esc_attr($event['hook']) . '">';
+        echo '<input type="hidden" name="sig" value="' . esc_attr($event['sig']) . '">';
+
+        echo '<div class="gd-cron-edit-grid">';
+        echo '<label class="gd-cron-field">';
+        echo '<span>' . esc_html__('First run (local time)', 'gd-cron') . '</span>';
+        echo '<input type="text" name="first_run" value="' . esc_attr($current_dt) . '" placeholder="2025-12-11 14:30">';
+        echo '</label>';
+
+        echo '<label class="gd-cron-field">';
+        echo '<span>' . esc_html__('Recurrence', 'gd-cron') . '</span>';
+        echo '<select name="schedule">';
+        echo '<option value="once"' . selected($event['schedule'], 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
+        foreach ($schedules as $key => $schedule_data) {
+            $label = $schedule_data['display'] ?? $key;
+            echo '<option value="' . esc_attr($key) . '"' . selected($event['schedule'], $key, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '</label>';
+
+        echo '<label class="gd-cron-field">';
+        echo '<span>' . esc_html__('Arguments (JSON)', 'gd-cron') . '</span>';
+        $args_value = !empty($event['args']) ? wp_json_encode($event['args']) : '';
+        echo '<textarea name="args" rows="2" placeholder="[\"foo\", 123]">' . esc_textarea($args_value) . '</textarea>';
+        echo '</label>';
+        echo '</div>';
+
+        echo '<button type="submit" class="button button-primary">' . esc_html__('Save changes', 'gd-cron') . '</button> ';
+        echo '<button type="button" class="button gd-cron-edit-cancel" data-target="' . esc_attr($row_id) . '">' . esc_html__('Cancel', 'gd-cron') . '</button>';
+        echo '</form>';
+        echo '</td>';
+        echo '</tr>';
     }
 
     private function render_settings_form(array $schedules): void

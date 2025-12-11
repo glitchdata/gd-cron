@@ -14,6 +14,7 @@ A lightweight WordPress admin tool to inspect, run, delete, and schedule WP-Cron
 - Actions per event:
   - **Run now**: immediately triggers the hook with its stored arguments.
   - **Delete**: unschedules the specific timestamp/args pair.
+  - **Edit**: change next run time, recurrence, and arguments; the event is unscheduled and rescheduled with the new values.
 - Schedule new events using the form:
   - Enter a hook name (e.g. `my_custom_hook`).
   - Optionally provide JSON arguments (e.g. `["foo", 123]`).
