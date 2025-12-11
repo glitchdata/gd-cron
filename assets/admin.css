@@ -61,6 +61,14 @@
     max-width: 100%;
 }
 
+.gd-audit__settings-form input[type="text"],
+.gd-audit__settings-form input[type="number"],
+.gd-audit__settings-form select,
+.gd-audit__settings-form textarea {
+    width: 360px;
+    max-width: 100%;
+}
+
 .column-actions {
     width: 140px;
 }
