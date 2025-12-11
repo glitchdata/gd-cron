@@ -97,16 +97,20 @@ class GDCronManager
         $schedules = wp_get_schedules();
         $now = $this->now();
 
-        echo '<div class="wrap">';
-        echo '<h1>' . esc_html__('Cron Manager', 'gd-cron') . '</h1>';
-        $this->render_notices();
-
+        echo '<div class="wrap gd-audit gd-audit-settings">';
+        echo '<div class="gd-audit__tabs">';
+        echo '<h1 class="wp-heading-inline">' . esc_html__('GD Cron', 'gd-cron') . '</h1>';
         $base_url = admin_url('admin.php?page=' . self::MENU_SLUG);
         echo '<h2 class="nav-tab-wrapper">';
         echo '<a href="' . esc_url(add_query_arg('tab', 'events', $base_url)) . '" class="nav-tab ' . ($tab === 'events' ? 'nav-tab-active' : '') . '">' . esc_html__('Events', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'settings', $base_url)) . '" class="nav-tab ' . ($tab === 'settings' ? 'nav-tab-active' : '') . '">' . esc_html__('Settings', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'logs', $base_url)) . '" class="nav-tab ' . ($tab === 'logs' ? 'nav-tab-active' : '') . '">' . esc_html__('Logs', 'gd-cron') . '</a>';
         echo '</h2>';
+        echo '</div>';
+        $this->render_notices();
+        if ($tab === 'settings') {
+            echo '<h1 class="gd-audit__section-title">' . esc_html__('Settings', 'gd-cron') . '</h1>';
+        }
 
         if ($tab === 'events') {
             echo '<div class="gd-cron-panel">';
@@ -132,12 +136,28 @@ class GDCronManager
         $license_key = isset($this->settings['license_key']) ? (string) $this->settings['license_key'] : '';
         $require_confirm = !empty($this->settings['require_delete_confirmation']);
 
-        echo '<h2>' . esc_html__('Settings', 'gd-cron') . '</h2>';
-        echo '<form method="post" class="gd-cron-form">';
+        echo '<form method="post" class="gd-audit__settings-form gd-cron-form">';
         wp_nonce_field(self::NONCE_ACTION);
         echo '<input type="hidden" name="gd_cron_action" value="save_settings">';
 
+        echo '<h2>' . esc_html__('License', 'gd-cron') . '</h2>';
+        echo '<p>' . esc_html__('Add your license key to unlock premium updates and support.', 'gd-cron') . '</p>';
         echo '<table class="form-table" role="presentation">';
+        echo '<tbody>';
+        echo '<tr><th scope="row">';
+        echo '<label for="gd-cron-license-key">' . esc_html__('License key', 'gd-cron') . '</label>';
+        echo '</th><td>';
+        echo '<input type="text" id="gd-cron-license-key" name="license_key" value="' . esc_attr($license_key) . '" class="regular-text" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX">';
+        echo '<p class="description">' . esc_html__('Paste the key from your purchase receipt. Leave blank to deactivate the license on this site.', 'gd-cron') . '</p>';
+        echo '<button type="button" class="button button-secondary" style="margin-top:10px;">' . esc_html__('Validate License', 'gd-cron') . '</button>';
+        echo '<a class="button" style="margin-top:10px; margin-left:6px;" href="https://license.glitchdata.com/shop/GD-01" target="_blank" rel="noopener noreferrer">' . esc_html__('Purchase License', 'gd-cron') . '</a>';
+        echo '</td></tr>';
+        echo '</tbody>';
+        echo '</table>';
+
+        echo '<h2>' . esc_html__('Defaults', 'gd-cron') . '</h2>';
+        echo '<table class="form-table" role="presentation">';
+        echo '<tbody>';
 
         echo '<tr><th scope="row">' . esc_html__('Default first-run offset (seconds)', 'gd-cron') . '</th><td>';
         echo '<input type="number" name="default_first_run_offset" value="' . esc_attr($default_first_run_offset) . '" min="60" step="60" class="small-text">';
@@ -154,15 +174,11 @@ class GDCronManager
         echo '</select>';
         echo '</td></tr>';
 
-        echo '<tr><th scope="row">' . esc_html__('License key', 'gd-cron') . '</th><td>';
-        echo '<input type="text" name="license_key" value="' . esc_attr($license_key) . '" class="regular-text" placeholder="XXXX-XXXX-XXXX-XXXX">';
-        echo '<p class="description">' . esc_html__('Store your GD Cron license key for reference.', 'gd-cron') . '</p>';
-        echo '</td></tr>';
-
         echo '<tr><th scope="row">' . esc_html__('Delete confirmation', 'gd-cron') . '</th><td>';
         echo '<label><input type="checkbox" name="require_delete_confirmation" value="1"' . checked($require_confirm, true, false) . '> ' . esc_html__('Ask before deleting events', 'gd-cron') . '</label>';
         echo '</td></tr>';
 
+        echo '</tbody>';
         echo '</table>';
 
         echo '<p class="submit">';
