@@ -23,6 +23,16 @@
     gap: 6px;
 }
 
+.gd-cron-actions form {
+    margin: 0;
+    display: inline-flex;
+}
+
+.gd-cron-actions a.button {
+    display: inline-flex;
+    align-items: center;
+}
+
 
 .gd-cron-inline {
     display: inline;
