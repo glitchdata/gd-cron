@@ -15,7 +15,9 @@ class GDCronManager
 {
     private const MENU_SLUG = 'gd-cron-manager';
     private const NONCE_ACTION = 'gd-cron-action';
+    private const OPTION_KEY = 'gd_cron_settings';
     private array $notices = [];
+    private array $settings = [];
 
     public function __construct()
     {
@@ -65,6 +67,7 @@ class GDCronManager
             wp_die(__('You do not have permission to access this page.', 'gd-cron'));
         }
 
+        $this->settings = $this->get_settings();
         $this->handle_actions();
 
         $events = $this->get_cron_events();
@@ -80,6 +83,8 @@ class GDCronManager
         echo '</div>';
         echo '<div class="gd-cron-panel">';
         $this->render_create_form($schedules, $now);
+        echo '<hr class="gd-cron-divider">';
+        $this->render_settings_form($schedules);
         echo '</div>';
         echo '</div>';
         echo '</div>';
@@ -144,7 +149,9 @@ class GDCronManager
 
         echo '<label class="gd-cron-field">';
         echo '<span>' . esc_html__('First run (local time)', 'gd-cron') . '</span>';
-        $default_time = date('Y-m-d H:i', $now + 300);
+        $offset = (int) ($this->settings['default_first_run_offset'] ?? 300);
+        $offset = max(60, $offset);
+        $default_time = date('Y-m-d H:i', $now + $offset);
         echo '<input type="text" name="first_run" value="' . esc_attr($default_time) . '" placeholder="2025-12-11 14:30">';
         echo '<p class="description">' . esc_html__('Format: YYYY-MM-DD HH:MM. Uses site timezone.', 'gd-cron') . '</p>';
         echo '</label>';
@@ -152,10 +159,11 @@ class GDCronManager
         echo '<label class="gd-cron-field">';
         echo '<span>' . esc_html__('Recurrence', 'gd-cron') . '</span>';
         echo '<select name="schedule">';
-        echo '<option value="once">' . esc_html__('Once', 'gd-cron') . '</option>';
+        $default_schedule = $this->settings['default_schedule'] ?? 'once';
+        echo '<option value="once"' . selected($default_schedule, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
         foreach ($schedules as $key => $schedule) {
             $label = $schedule['display'] ?? $key;
-            echo '<option value="' . esc_attr($key) . '">' . esc_html($label) . '</option>';
+            echo '<option value="' . esc_attr($key) . '"' . selected($default_schedule, $key, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';
         echo '</label>';
@@ -182,7 +190,10 @@ class GDCronManager
         echo '<input type="hidden" name="timestamp" value="' . esc_attr($event['timestamp']) . '">';
         echo '<input type="hidden" name="hook" value="' . esc_attr($event['hook']) . '">';
         echo '<input type="hidden" name="sig" value="' . esc_attr($event['sig']) . '">';
-        echo '<button class="button button-secondary gd-cron-delete" data-confirm="' . esc_attr__('Delete this event?', 'gd-cron') . '">' . esc_html__('Delete', 'gd-cron') . '</button>';
+        $confirm_attr = !empty($this->settings['require_delete_confirmation'])
+            ? ' data-confirm="' . esc_attr__('Delete this event?', 'gd-cron') . '"'
+            : '';
+        echo '<button class="button button-secondary gd-cron-delete"' . $confirm_attr . '>' . esc_html__('Delete', 'gd-cron') . '</button>';
         echo '</form>';
         echo '</div>';
     }
@@ -206,6 +217,9 @@ class GDCronManager
                 break;
             case 'create':
                 $this->handle_create();
+                break;
+            case 'save_settings':
+                $this->handle_save_settings();
                 break;
         }
     }
@@ -290,6 +304,31 @@ class GDCronManager
         }
     }
 
+    private function handle_save_settings(): void
+    {
+        $raw = wp_unslash($_POST);
+        $offset = isset($raw['default_first_run_offset']) ? (int) $raw['default_first_run_offset'] : 300;
+        $schedule = isset($raw['default_schedule']) ? sanitize_text_field($raw['default_schedule']) : 'once';
+        $require_confirm = !empty($raw['require_delete_confirmation']) ? 1 : 0;
+
+        $offset = max(60, $offset);
+
+        $schedules = wp_get_schedules();
+        if ($schedule !== 'once' && !isset($schedules[$schedule])) {
+            $schedule = 'once';
+        }
+
+        $settings = [
+            'default_first_run_offset' => $offset,
+            'default_schedule' => $schedule,
+            'require_delete_confirmation' => $require_confirm,
+        ];
+
+        update_option(self::OPTION_KEY, $settings, false);
+        $this->settings = $settings;
+        $this->add_notice(__('Settings saved.', 'gd-cron'), 'success');
+    }
+
     private function get_cron_events(): array
     {
         $crons = _get_cron_array();
@@ -351,7 +390,9 @@ class GDCronManager
     private function parse_datetime(string $input): ?int
     {
         if (empty($input)) {
-            return $this->now() + 300;
+            $offset = (int) ($this->settings['default_first_run_offset'] ?? 300);
+            $offset = max(60, $offset);
+            return $this->now() + $offset;
         }
 
         $tz = wp_timezone();
@@ -384,6 +425,59 @@ class GDCronManager
             echo '<p>' . esc_html($notice['message']) . '</p>';
             echo '</div>';
         }
+    }
+
+    private function render_settings_form(array $schedules): void
+    {
+        $settings = $this->settings;
+        $offset = (int) ($settings['default_first_run_offset'] ?? 300);
+        $schedule = $settings['default_schedule'] ?? 'once';
+        $require_confirm = !empty($settings['require_delete_confirmation']);
+
+        echo '<h2>' . esc_html__('Settings', 'gd-cron') . '</h2>';
+        echo '<form method="post" class="gd-cron-form">';
+        wp_nonce_field(self::NONCE_ACTION);
+        echo '<input type="hidden" name="gd_cron_action" value="save_settings">';
+
+        echo '<label class="gd-cron-field">';
+        echo '<span>' . esc_html__('Default first run offset (seconds)', 'gd-cron') . '</span>';
+        echo '<input type="number" min="60" step="60" name="default_first_run_offset" value="' . esc_attr($offset) . '">';
+        echo '<p class="description">' . esc_html__('Used when the first run field is left empty.', 'gd-cron') . '</p>';
+        echo '</label>';
+
+        echo '<label class="gd-cron-field">';
+        echo '<span>' . esc_html__('Default recurrence', 'gd-cron') . '</span>';
+        echo '<select name="default_schedule">';
+        echo '<option value="once"' . selected($schedule, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
+        foreach ($schedules as $key => $schedule_data) {
+            $label = $schedule_data['display'] ?? $key;
+            echo '<option value="' . esc_attr($key) . '"' . selected($schedule, $key, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '</label>';
+
+        echo '<label class="gd-cron-field">';
+        echo '<input type="checkbox" name="require_delete_confirmation" value="1"' . checked($require_confirm, true, false) . '> ' . esc_html__('Ask for confirmation before deleting an event', 'gd-cron');
+        echo '</label>';
+
+        echo '<button type="submit" class="button button-primary">' . esc_html__('Save settings', 'gd-cron') . '</button>';
+        echo '</form>';
+    }
+
+    private function get_settings(): array
+    {
+        $defaults = [
+            'default_first_run_offset' => 300,
+            'default_schedule' => 'once',
+            'require_delete_confirmation' => 1,
+        ];
+
+        $saved = get_option(self::OPTION_KEY);
+        if (!is_array($saved)) {
+            return $defaults;
+        }
+
+        return array_merge($defaults, $saved);
     }
 }
 

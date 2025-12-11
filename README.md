@@ -20,6 +20,12 @@ A lightweight WordPress admin tool to inspect, run, delete, and schedule WP-Cron
   - Set the first run time in your site timezone (format `YYYY-MM-DD HH:MM`).
   - Choose **Once** or any registered recurrence schedule.
 
+### Settings
+
+- Default first-run offset (seconds) when no time is provided.
+- Default recurrence for new events.
+- Toggle delete confirmation prompts.
+
 ## Notes and cautions
 
 - Running hooks manually executes the attached callbacks immediately; use with care on production.
