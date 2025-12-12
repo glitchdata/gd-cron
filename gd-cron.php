@@ -182,10 +182,10 @@ class GDCronManager
 
         if ($tab === 'dashboard') {
             $this->render_dashboard($events, $now);
-        } elseif ($tab === 'events') {
-            $this->render_events_table($events, $now);
         } elseif ($tab === 'settings') {
             $this->render_settings_form($schedules);
+        } elseif ($tab === 'events') {
+            $this->render_events_table($events, $now);
         } else {
             $log_filters = [
                 'hook' => isset($_GET['log_hook']) ? sanitize_text_field(wp_unslash($_GET['log_hook'])) : '',
