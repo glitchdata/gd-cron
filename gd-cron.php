@@ -193,13 +193,17 @@ class GDCronManager
             ];
             $log_page = isset($_GET['log_page']) ? max(1, (int) $_GET['log_page']) : 1;
             $per_page = 30;
+            $log_sort = isset($_GET['log_sort']) ? sanitize_key(wp_unslash($_GET['log_sort'])) : 'created_at';
+            $log_dir = isset($_GET['log_dir']) ? sanitize_key(wp_unslash($_GET['log_dir'])) : 'desc';
             $this->render_log_panel(
-                $this->get_log($log_filters, $per_page, $log_page),
+                $this->get_log($log_filters, $per_page, $log_page, $log_sort, $log_dir),
                 $log_filters,
                 $page,
                 $log_page,
                 $this->get_log_count($log_filters),
-                $per_page
+                $per_page,
+                $log_sort,
+                $log_dir
             );
         }
         echo '</div>';
@@ -803,7 +807,13 @@ class GDCronManager
         );
     }
 
-    private function get_log(array $filters = [], int $limit = 30, int $page = 1): array
+    private function get_log(
+        array $filters = [],
+        int $limit = 30,
+        int $page = 1,
+        string $sort = 'created_at',
+        string $direction = 'desc'
+    ): array
     {
         global $wpdb;
         $table = $this->get_log_table_name($wpdb);
@@ -813,6 +823,15 @@ class GDCronManager
         $limit = max(1, $limit);
         $page = max(1, $page);
         $offset = ($page - 1) * $limit;
+
+        $allowed_sorts = [
+            'created_at' => 'created_at',
+            'action' => 'action',
+            'hook' => 'hook',
+            'note' => 'note',
+        ];
+        $order_by = $allowed_sorts[$sort] ?? 'created_at';
+        $direction = strtolower($direction) === 'asc' ? 'ASC' : 'DESC';
 
         if (!empty($filters['hook'])) {
             $where[] = 'hook LIKE %s';
@@ -828,7 +847,7 @@ class GDCronManager
         if ($where) {
             $sql .= ' WHERE ' . implode(' AND ', $where);
         }
-        $sql .= ' ORDER BY id DESC LIMIT %d OFFSET %d';
+        $sql .= " ORDER BY {$order_by} {$direction} LIMIT %d OFFSET %d";
         $params[] = $limit;
         $params[] = $offset;
 
@@ -921,7 +940,9 @@ class GDCronManager
         string $current_page = '',
         int $current_page_num = 1,
         int $total = 0,
-        int $per_page = 30
+        int $per_page = 30,
+        string $sort = 'created_at',
+        string $direction = 'desc'
     ): void
     {
         echo '<h2>' . esc_html__('Event Log', 'gd-cron') . '</h2>';
@@ -934,10 +955,14 @@ class GDCronManager
         $per_page = max(1, $per_page);
         $total = max($total, count($log));
         $total_pages = (int) ceil($total / $per_page);
+        $sort = in_array($sort, ['created_at', 'action', 'hook', 'note'], true) ? $sort : 'created_at';
+        $direction = strtolower($direction) === 'asc' ? 'asc' : 'desc';
 
         echo '<form method="get" class="gd-cron-filters" style="margin-top:8px;">';
         echo '<input type="hidden" name="page" value="' . esc_attr($page_param) . '">';
         echo '<input type="hidden" name="tab" value="logs">';
+        echo '<input type="hidden" name="log_sort" value="' . esc_attr($sort) . '">';
+        echo '<input type="hidden" name="log_dir" value="' . esc_attr($direction) . '">';
         echo '<label>' . esc_html__('Hook contains', 'gd-cron') . ' <input type="text" name="log_hook" value="' . esc_attr($hook_filter) . '" placeholder="my_hook"></label>';
         echo '<label>' . esc_html__('Action', 'gd-cron') . ' <select name="log_action">';
         echo '<option value="">' . esc_html__('Any', 'gd-cron') . '</option>';
@@ -956,12 +981,41 @@ class GDCronManager
             return;
         }
 
+        $base_url = admin_url('admin.php');
+        $base_args = [
+            'page' => $page_param,
+            'tab' => 'logs',
+        ];
+        if ($hook_filter !== '') {
+            $base_args['log_hook'] = $hook_filter;
+        }
+        if ($action_filter !== '') {
+            $base_args['log_action'] = $action_filter;
+        }
+
+        $make_sort_link = function (string $field) use ($base_url, $base_args, $sort, $direction): string {
+            $dir_for_link = ($sort === $field && $direction === 'asc') ? 'desc' : 'asc';
+            $args = array_merge($base_args, [
+                'log_sort' => $field,
+                'log_dir' => $dir_for_link,
+                'log_page' => 1,
+            ]);
+            return esc_url(add_query_arg($args, $base_url));
+        };
+
+        $sort_arrow = function (string $field) use ($sort, $direction): string {
+            if ($sort === $field) {
+                return $direction === 'asc' ? ' &uarr;' : ' &darr;';
+            }
+            return ' &uarr;&darr;';
+        };
+
         echo '<table class="widefat fixed striped">';
         echo '<thead><tr>';
-        echo '<th>' . esc_html__('Time', 'gd-cron') . '</th>';
-        echo '<th>' . esc_html__('Action', 'gd-cron') . '</th>';
-        echo '<th>' . esc_html__('Hook', 'gd-cron') . '</th>';
-        echo '<th>' . esc_html__('Details', 'gd-cron') . '</th>';
+        echo '<th><a href="' . $make_sort_link('created_at') . '">' . esc_html__('Time', 'gd-cron') . $sort_arrow('created_at') . '</a></th>';
+        echo '<th><a href="' . $make_sort_link('action') . '">' . esc_html__('Action', 'gd-cron') . $sort_arrow('action') . '</a></th>';
+        echo '<th><a href="' . $make_sort_link('hook') . '">' . esc_html__('Hook', 'gd-cron') . $sort_arrow('hook') . '</a></th>';
+        echo '<th><a href="' . $make_sort_link('note') . '">' . esc_html__('Details', 'gd-cron') . $sort_arrow('note') . '</a></th>';
         echo '<th>' . esc_html__('JSON', 'gd-cron') . '</th>';
         echo '</tr></thead><tbody>';
 
@@ -996,17 +1050,8 @@ class GDCronManager
         echo '</tbody></table>';
 
         if ($total_pages > 1) {
-            $base_url = admin_url('admin.php');
-            $base_args = [
-                'page' => $page_param,
-                'tab' => 'logs',
-            ];
-            if ($hook_filter !== '') {
-                $base_args['log_hook'] = $hook_filter;
-            }
-            if ($action_filter !== '') {
-                $base_args['log_action'] = $action_filter;
-            }
+            $base_args['log_sort'] = $sort;
+            $base_args['log_dir'] = $direction;
 
             $prev_page = max(1, $current_page_num - 1);
             $next_page = min($total_pages, $current_page_num + 1);
