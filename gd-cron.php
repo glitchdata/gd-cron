@@ -470,39 +470,46 @@ class GDCronManager
         echo '<form method="post" class="gd-cron-form">';
         wp_nonce_field(self::NONCE_ACTION);
         echo '<input type="hidden" name="gd_cron_action" value="create">';
-
-        echo '<label class="gd-cron-field">';
-        echo '<span>' . esc_html__('Hook name', 'gd-cron') . '</span>';
-        echo '<input type="text" name="hook" required placeholder="my_custom_hook">';
-        echo '</label>';
-
-        echo '<label class="gd-cron-field">';
-        echo '<span>' . esc_html__('Arguments (JSON optional)', 'gd-cron') . '</span>';
-        echo '<textarea name="args" rows="3" placeholder="[\"value\", 123]"></textarea>';
-        echo '</label>';
-
-        echo '<label class="gd-cron-field">';
-        echo '<span>' . esc_html__('First run (local time)', 'gd-cron') . '</span>';
         $offset = (int) ($this->settings['default_first_run_offset'] ?? 300);
         $offset = max(60, $offset);
         $default_time = date('Y-m-d H:i', $now + $offset);
-        echo '<input type="text" name="first_run" value="' . esc_attr($default_time) . '" placeholder="2025-12-11 14:30">';
-        echo '<p class="description">' . esc_html__('Format: YYYY-MM-DD HH:MM. Uses site timezone.', 'gd-cron') . '</p>';
-        echo '</label>';
-
-        echo '<label class="gd-cron-field">';
-        echo '<span>' . esc_html__('Recurrence', 'gd-cron') . '</span>';
-        echo '<select name="schedule">';
         $default_schedule = $this->settings['default_schedule'] ?? 'once';
+
+        echo '<table class="form-table" role="presentation">';
+        echo '<tbody>';
+
+        echo '<tr><th scope="row">' . esc_html__('Hook name', 'gd-cron') . '</th><td>';
+        echo '<input type="text" name="hook" required class="regular-text" placeholder="my_custom_hook">';
+        echo '<p class="description">' . esc_html__('Unique identifier for the cron task.', 'gd-cron') . '</p>';
+        echo '</td></tr>';
+
+        echo '<tr><th scope="row">' . esc_html__('Arguments (JSON optional)', 'gd-cron') . '</th><td>';
+        echo '<textarea name="args" rows="3" class="large-text code" placeholder="[\"value\", 123]"></textarea>';
+        echo '<p class="description">' . esc_html__('Pass parameters to the hook. Leave blank if not needed.', 'gd-cron') . '</p>';
+        echo '</td></tr>';
+
+        echo '<tr><th scope="row">' . esc_html__('First run (local time)', 'gd-cron') . '</th><td>';
+        echo '<input type="text" name="first_run" value="' . esc_attr($default_time) . '" class="regular-text" placeholder="2025-12-11 14:30">';
+        echo '<p class="description">' . esc_html__('Format: YYYY-MM-DD HH:MM. Uses site timezone.', 'gd-cron') . '</p>';
+        echo '</td></tr>';
+
+        echo '<tr><th scope="row">' . esc_html__('Recurrence', 'gd-cron') . '</th><td>';
+        echo '<select name="schedule">';
         echo '<option value="once"' . selected($default_schedule, 'once', false) . '>' . esc_html__('Once', 'gd-cron') . '</option>';
         foreach ($schedules as $key => $schedule) {
             $label = $schedule['display'] ?? $key;
             echo '<option value="' . esc_attr($key) . '"' . selected($default_schedule, $key, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';
-        echo '</label>';
+        echo '<p class="description">' . esc_html__('Choose how often the event repeats.', 'gd-cron') . '</p>';
+        echo '</td></tr>';
 
+        echo '</tbody>';
+        echo '</table>';
+
+        echo '<p class="submit">';
         echo '<button type="submit" class="button button-primary">' . esc_html__('Schedule event', 'gd-cron') . '</button>';
+        echo '</p>';
         echo '</form>';
     }
 
