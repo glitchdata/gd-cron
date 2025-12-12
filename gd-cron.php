@@ -133,14 +133,16 @@ class GDCronManager
     }
 
     public function render_page(): void
-    {
-                self::maybe_create_log_table();
-        if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have permission to access this page.', 'gd-cron'));
-        }
-
-        $this->settings = $this->get_settings();
-                    $this->prune_logs();
+                $this->render_log_panel(
+                    $this->get_log($log_filters, $per_page, $log_page),
+                    $log_filters,
+                    $page,
+                    $log_page,
+                    $this->get_log_count($log_filters),
+                    $per_page
+                );
+                $current_page_num = max(1, $current_page_num);
+                $per_page = max(1, $per_page);
         $this->handle_actions();
 
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : self::MENU_SLUG;
@@ -191,7 +193,16 @@ class GDCronManager
                 'hook' => isset($_GET['log_hook']) ? sanitize_text_field(wp_unslash($_GET['log_hook'])) : '',
                 'action' => isset($_GET['log_action']) ? sanitize_text_field(wp_unslash($_GET['log_action'])) : '',
             ];
-            $this->render_log_panel($this->get_log($log_filters), $log_filters, $page);
+            $log_page = isset($_GET['log_page']) ? max(1, (int) $_GET['log_page']) : 1;
+            $per_page = 30;
+            $this->render_log_panel(
+                $this->get_log($log_filters, $per_page, $log_page),
+                $log_filters,
+                $page,
+                $log_page,
+                $this->get_log_count($log_filters),
+                $per_page
+            );
         }
         echo '</div>';
         echo '</div>';
@@ -794,7 +805,40 @@ class GDCronManager
         );
     }
 
-    private function get_log(array $filters = []): array
+    private function get_log(array $filters = [], int $limit = 30, int $page = 1): array
+    {
+        global $wpdb;
+        $table = $this->get_log_table_name($wpdb);
+        $where = [];
+        $params = [];
+
+        $limit = max(1, $limit);
+        $page = max(1, $page);
+        $offset = ($page - 1) * $limit;
+
+        if (!empty($filters['hook'])) {
+            $where[] = 'hook LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($filters['hook']) . '%';
+        }
+
+        if (!empty($filters['action'])) {
+            $where[] = 'action = %s';
+            $params[] = $filters['action'];
+        }
+
+        $sql = "SELECT id, hook, action, note, created_at FROM {$table}";
+        if ($where) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $sql .= ' ORDER BY id DESC LIMIT %d OFFSET %d';
+        $params[] = $limit;
+        $params[] = $offset;
+
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
+        return is_array($rows) ? $rows : [];
+    }
+
+    private function get_log_count(array $filters = []): int
     {
         global $wpdb;
         $table = $this->get_log_table_name($wpdb);
@@ -811,15 +855,13 @@ class GDCronManager
             $params[] = $filters['action'];
         }
 
-        $sql = "SELECT id, hook, action, note, created_at FROM {$table}";
+        $sql = "SELECT COUNT(*) FROM {$table}";
         if ($where) {
             $sql .= ' WHERE ' . implode(' AND ', $where);
         }
-        $sql .= ' ORDER BY id DESC LIMIT %d';
-        $params[] = 200;
 
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
-        return is_array($rows) ? $rows : [];
+        $count = $wpdb->get_var($params ? $wpdb->prepare($sql, $params) : $sql);
+        return $count ? (int) $count : 0;
     }
 
     public function register_cron_listeners(): void
@@ -875,7 +917,14 @@ class GDCronManager
         return $links;
     }
 
-    private function render_log_panel(array $log, array $filters, string $current_page): void
+    private function render_log_panel(
+        array $log,
+        array $filters,
+        string $current_page = '',
+        int $current_page_num = 1,
+        int $total = 0,
+        int $per_page = 30
+    ): void
     {
         echo '<h2>' . esc_html__('Event Log', 'gd-cron') . '</h2>';
         echo '<p class="description">' . esc_html__('Recent actions performed through Cron Manager.', 'gd-cron') . '</p>';
@@ -883,6 +932,10 @@ class GDCronManager
         $page_param = $current_page ?: self::MENU_SLUG;
         $action_filter = $filters['action'] ?? '';
         $hook_filter = $filters['hook'] ?? '';
+        $current_page_num = max(1, $current_page_num);
+        $per_page = max(1, $per_page);
+        $total = max($total, count($log));
+        $total_pages = (int) ceil($total / $per_page);
 
         echo '<form method="get" class="gd-cron-filters" style="margin-top:8px;">';
         echo '<input type="hidden" name="page" value="' . esc_attr($page_param) . '">';
@@ -943,6 +996,38 @@ class GDCronManager
         }
 
         echo '</tbody></table>';
+
+        if ($total_pages > 1) {
+            $base_url = admin_url('admin.php');
+            $base_args = [
+                'page' => $page_param,
+                'tab' => 'logs',
+            ];
+            if ($hook_filter !== '') {
+                $base_args['log_hook'] = $hook_filter;
+            }
+            if ($action_filter !== '') {
+                $base_args['log_action'] = $action_filter;
+            }
+
+            $prev_page = max(1, $current_page_num - 1);
+            $next_page = min($total_pages, $current_page_num + 1);
+            $prev_url = esc_url(add_query_arg(array_merge($base_args, ['log_page' => $prev_page]), $base_url));
+            $next_url = esc_url(add_query_arg(array_merge($base_args, ['log_page' => $next_page]), $base_url));
+
+            echo '<div class="tablenav" style="margin-top:12px;">';
+            echo '<div class="tablenav-pages">';
+            echo '<span class="displaying-num">' . sprintf(esc_html__('%d items', 'gd-cron'), (int) $total) . '</span>';
+            echo '<span class="pagination-links">';
+            $prev_disabled = $current_page_num <= 1 ? ' disabled' : '';
+            $next_disabled = $current_page_num >= $total_pages ? ' disabled' : '';
+            echo '<a class="prev-page button' . esc_attr($prev_disabled) . '" href="' . ($prev_disabled ? '#' : $prev_url) . '"><span class="screen-reader-text">' . esc_html__('Previous page', 'gd-cron') . '</span><span aria-hidden="true">&lsaquo;</span></a>';
+            echo '<span class="paging-input">' . sprintf(esc_html__('Page %1$d of %2$d', 'gd-cron'), (int) $current_page_num, (int) $total_pages) . '</span>';
+            echo '<a class="next-page button' . esc_attr($next_disabled) . '" href="' . ($next_disabled ? '#' : $next_url) . '"><span class="screen-reader-text">' . esc_html__('Next page', 'gd-cron') . '</span><span aria-hidden="true">&rsaquo;</span></a>';
+            echo '</span>';
+            echo '</div>';
+            echo '</div>';
+        }
     }
 
     public function render_edit_page(): void
