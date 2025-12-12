@@ -147,17 +147,17 @@ class GDCronManager
         wp_nonce_field(self::NONCE_ACTION);
         echo '<input type="hidden" name="gd_cron_action" value="save_settings">';
 
-        echo '<h2>' . esc_html__('License', 'gd-cron') . '</h2>';
-        echo '<p>' . esc_html__('Add your license key to unlock premium updates and support.', 'gd-cron') . '</p>';
+        echo '<h2>' . esc_html__('API Key', 'gd-cron') . '</h2>';
+        echo '<p>' . esc_html__('Add your API key to unlock premium updates and support.', 'gd-cron') . '</p>';
         echo '<table class="form-table" role="presentation">';
         echo '<tbody>';
         echo '<tr><th scope="row">';
-        echo '<label for="gd-cron-license-key">' . esc_html__('License key', 'gd-cron') . '</label>';
+        echo '<label for="gd-cron-license-key">' . esc_html__('API key', 'gd-cron') . '</label>';
         echo '</th><td>';
         echo '<input type="text" id="gd-cron-license-key" name="license_key" value="' . esc_attr($license_key) . '" class="regular-text" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX">';
-        echo '<p class="description">' . esc_html__('Paste the key from your purchase receipt. Leave blank to deactivate the license on this site.', 'gd-cron') . '</p>';
-        echo '<button type="button" class="button button-secondary" style="margin-top:10px;">' . esc_html__('Validate License', 'gd-cron') . '</button>';
-        echo '<a class="button" style="margin-top:10px; margin-left:6px;" href="https://license.glitchdata.com/shop/GD-01" target="_blank" rel="noopener noreferrer">' . esc_html__('Purchase License', 'gd-cron') . '</a>';
+        echo '<p class="description">' . esc_html__('Paste the key from your purchase receipt. Leave blank to deactivate the API key on this site.', 'gd-cron') . '</p>';
+        echo '<button type="button" class="button button-secondary" style="margin-top:10px;">' . esc_html__('Validate API Key', 'gd-cron') . '</button>';
+        echo '<a class="button" style="margin-top:10px; margin-left:6px;" href="https://license.glitchdata.com/shop/GD-01" target="_blank" rel="noopener noreferrer">' . esc_html__('Purchase API Key', 'gd-cron') . '</a>';
         echo '</td></tr>';
         echo '</tbody>';
         echo '</table>';
