@@ -246,6 +246,11 @@ class GDCronManager
         echo '<label><input type="checkbox" name="require_delete_confirmation" value="1"' . checked($require_confirm, true, false) . '> ' . esc_html__('Ask before deleting events', 'gd-cron') . '</label>';
         echo '</td></tr>';
 
+        echo '<tr><th scope="row">' . esc_html__('Prune logs older than (days)', 'gd-cron') . '</th><td>';
+        echo '<input type="number" name="log_retention_days" value="' . esc_attr($this->settings['log_retention_days'] ?? 30) . '" min="0" step="1" class="small-text">';
+        echo '<p class="description">' . esc_html__('0 disables pruning. Applies on admin load.', 'gd-cron') . '</p>';
+        echo '</td></tr>';
+
         echo '</tbody>';
         echo '</table>';
 
@@ -649,6 +654,7 @@ class GDCronManager
         $schedule = isset($raw['default_schedule']) ? sanitize_text_field($raw['default_schedule']) : 'once';
         $require_confirm = !empty($raw['require_delete_confirmation']) ? 1 : 0;
         $license_key = isset($raw['license_key']) ? sanitize_text_field($raw['license_key']) : '';
+        $log_retention_days = isset($raw['log_retention_days']) ? max(0, (int) $raw['log_retention_days']) : 30;
 
         $offset = max(60, $offset);
 
@@ -662,6 +668,7 @@ class GDCronManager
             'default_schedule' => $schedule,
             'license_key' => $license_key,
             'require_delete_confirmation' => $require_confirm,
+            'log_retention_days' => $log_retention_days,
         ];
 
         update_option(self::OPTION_KEY, $settings, false);
@@ -1002,6 +1009,7 @@ class GDCronManager
             'default_schedule' => 'once',
             'license_key' => '',
             'require_delete_confirmation' => 1,
+            'log_retention_days' => 30,
         ];
 
         $saved = get_option(self::OPTION_KEY);
@@ -1042,6 +1050,19 @@ class GDCronManager
 
         dbDelta($sql);
         update_option(self::LOG_DB_VERSION_KEY, self::LOG_DB_VERSION, false);
+    }
+
+    private function prune_logs(): void
+    {
+        $days = isset($this->settings['log_retention_days']) ? (int) $this->settings['log_retention_days'] : 30;
+        if ($days <= 0) {
+            return;
+        }
+
+        global $wpdb;
+        $table = self::get_log_table_name($wpdb);
+        $cutoff = gmdate('Y-m-d H:i:s', time() - ($days * DAY_IN_SECONDS));
+        $wpdb->query($wpdb->prepare("DELETE FROM {$table} WHERE created_at < %s", $cutoff));
     }
 }
 
