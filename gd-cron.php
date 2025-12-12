@@ -1140,16 +1140,24 @@ class GDCronManager
         $this->prune_logs();
         $this->handle_actions();
 
-        $event = $this->find_event_from_request('get', true);
         $schedules = wp_get_schedules();
+        $is_edit_request = isset($_GET['timestamp'], $_GET['hook'], $_GET['sig']);
+        $event = $this->find_event_from_request('get', true);
+        $now = $this->now();
 
         echo '<div class="wrap">';
-        echo '<h1>' . esc_html__('Edit Cron Event', 'gd-cron') . '</h1>';
+        echo '<h1>' . esc_html($is_edit_request ? __('Edit Cron Event', 'gd-cron') : __('Add Cron Event', 'gd-cron')) . '</h1>';
         $this->render_notices();
 
-        if (!$event) {
+        if ($is_edit_request && !$event) {
             echo '<p>' . esc_html__('Event not found. It may have just run or been removed.', 'gd-cron') . '</p>';
             echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Back to Cron Manager', 'gd-cron') . '</a></p>';
+            echo '</div>';
+            return;
+        }
+
+        if (!$is_edit_request) {
+            $this->render_create_form($schedules, $now);
             echo '</div>';
             return;
         }
