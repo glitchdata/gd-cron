@@ -24,6 +24,7 @@ class GDCronManager
     private const LOG_TABLE = 'gd_cron_logs';
     private const LOG_DB_VERSION_KEY = 'gd_cron_log_db_version';
     private const LOG_DB_VERSION = '1.0.0';
+    private static array $registered_hooks = [];
     private array $notices = [];
     private array $settings = [];
 
@@ -33,6 +34,8 @@ class GDCronManager
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'add_plugin_link']);
         add_action('admin_head', [$this, 'hide_edit_submenu']);
+        add_action('init', [self::class, 'maybe_create_log_table'], 0);
+        add_action('init', [$this, 'register_cron_listeners'], 1);
         register_activation_hook(__FILE__, [self::class, 'activate']);
     }
 
@@ -785,6 +788,42 @@ class GDCronManager
         $table = $this->get_log_table_name($wpdb);
         $rows = $wpdb->get_results($wpdb->prepare("SELECT id, hook, action, note, created_at FROM {$table} ORDER BY id DESC LIMIT %d", 200), ARRAY_A);
         return is_array($rows) ? $rows : [];
+    }
+
+    public function register_cron_listeners(): void
+    {
+        $crons = _get_cron_array();
+        if (empty($crons) || !is_array($crons)) {
+            return;
+        }
+
+        foreach ($crons as $hooks) {
+            foreach ($hooks as $hook => $instances) {
+                if (isset(self::$registered_hooks[$hook])) {
+                    continue;
+                }
+                add_action($hook, [$this, 'handle_cron_execution'], 10, 10);
+                self::$registered_hooks[$hook] = true;
+            }
+        }
+    }
+
+    public function handle_cron_execution(...$args): void
+    {
+        $hook = current_filter();
+        if (!$hook) {
+            return;
+        }
+
+        $note = '';
+        if (!empty($args)) {
+            $encoded = wp_json_encode($args);
+            if (is_string($encoded)) {
+                $note = substr($encoded, 0, 500);
+            }
+        }
+
+        $this->log_event('auto-run', $hook, $note);
     }
 
     private function render_notices(): void
