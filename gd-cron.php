@@ -966,12 +966,12 @@ class GDCronManager
         return array_merge($defaults, $saved);
     }
 
-    private static function get_log_table_name($wpdb): string
+    public static function get_log_table_name($wpdb): string
     {
         return $wpdb->prefix . self::LOG_TABLE;
     }
 
-    private static function maybe_create_log_table(): void
+    public static function maybe_create_log_table(): void
     {
         global $wpdb;
         $installed = get_option(self::LOG_DB_VERSION_KEY);
