@@ -67,19 +67,19 @@ class GDCronManager
 
         add_submenu_page(
             self::MENU_SLUG,
-            __('Events', 'gd-cron'),
-            __('Events', 'gd-cron'),
+            __('Settings', 'gd-cron'),
+            __('Settings', 'gd-cron'),
             'manage_options',
-            self::EVENTS_SLUG,
+            self::SETTINGS_SLUG,
             [$this, 'render_page']
         );
 
         add_submenu_page(
             self::MENU_SLUG,
-            __('Settings', 'gd-cron'),
-            __('Settings', 'gd-cron'),
+            __('Events', 'gd-cron'),
+            __('Events', 'gd-cron'),
             'manage_options',
-            self::SETTINGS_SLUG,
+            self::EVENTS_SLUG,
             [$this, 'render_page']
         );
 
@@ -170,8 +170,8 @@ class GDCronManager
         $base_url = admin_url('admin.php?page=' . self::MENU_SLUG);
         echo '<h2 class="nav-tab-wrapper">';
         echo '<a href="' . esc_url(add_query_arg('tab', 'dashboard', $base_url)) . '" class="nav-tab ' . ($tab === 'dashboard' ? 'nav-tab-active' : '') . '">' . esc_html__('Dashboard', 'gd-cron') . '</a>';
-        echo '<a href="' . esc_url(add_query_arg('tab', 'events', $base_url)) . '" class="nav-tab ' . ($tab === 'events' ? 'nav-tab-active' : '') . '">' . esc_html__('Events', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'settings', $base_url)) . '" class="nav-tab ' . ($tab === 'settings' ? 'nav-tab-active' : '') . '">' . esc_html__('Settings', 'gd-cron') . '</a>';
+        echo '<a href="' . esc_url(add_query_arg('tab', 'events', $base_url)) . '" class="nav-tab ' . ($tab === 'events' ? 'nav-tab-active' : '') . '">' . esc_html__('Events', 'gd-cron') . '</a>';
         echo '<a href="' . esc_url(add_query_arg('tab', 'logs', $base_url)) . '" class="nav-tab ' . ($tab === 'logs' ? 'nav-tab-active' : '') . '">' . esc_html__('Logs', 'gd-cron') . '</a>';
         echo '</h2>';
         echo '</div>';
@@ -920,12 +920,11 @@ class GDCronManager
             $hook = isset($entry['hook']) ? (string) $entry['hook'] : '';
             $note = isset($entry['note']) ? (string) $entry['note'] : '';
 
-            $payload = [
-                'hook' => $hook,
-                'action' => $action,
-                'note' => $note,
-                'created_at' => $entry['created_at'] ?? '',
-            ];
+            // Encode only the log entry fields (no extra UI data)
+            $payload = array_intersect_key(
+                $entry,
+                array_flip(['hook', 'action', 'note', 'created_at'])
+            );
             $json = wp_json_encode($payload);
             $data_url = $json ? 'data:application/json;charset=utf-8,' . rawurlencode($json) : '';
 
