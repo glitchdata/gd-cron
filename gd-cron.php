@@ -133,16 +133,14 @@ class GDCronManager
     }
 
     public function render_page(): void
-                $this->render_log_panel(
-                    $this->get_log($log_filters, $per_page, $log_page),
-                    $log_filters,
-                    $page,
-                    $log_page,
-                    $this->get_log_count($log_filters),
-                    $per_page
-                );
-                $current_page_num = max(1, $current_page_num);
-                $per_page = max(1, $per_page);
+    {
+        self::maybe_create_log_table();
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to access this page.', 'gd-cron'));
+        }
+
+        $this->settings = $this->get_settings();
+        $this->prune_logs();
         $this->handle_actions();
 
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : self::MENU_SLUG;
