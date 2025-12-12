@@ -186,7 +186,11 @@ class GDCronManager
         } elseif ($tab === 'settings') {
             $this->render_settings_form($schedules);
         } else {
-            $this->render_log_panel($this->get_log());
+            $log_filters = [
+                'hook' => isset($_GET['log_hook']) ? sanitize_text_field(wp_unslash($_GET['log_hook'])) : '',
+                'action' => isset($_GET['log_action']) ? sanitize_text_field(wp_unslash($_GET['log_action'])) : '',
+            ];
+            $this->render_log_panel($this->get_log($log_filters), $log_filters, $page);
         }
         echo '</div>';
         echo '</div>';
@@ -782,11 +786,31 @@ class GDCronManager
         );
     }
 
-    private function get_log(): array
+    private function get_log(array $filters = []): array
     {
         global $wpdb;
         $table = $this->get_log_table_name($wpdb);
-        $rows = $wpdb->get_results($wpdb->prepare("SELECT id, hook, action, note, created_at FROM {$table} ORDER BY id DESC LIMIT %d", 200), ARRAY_A);
+        $where = [];
+        $params = [];
+
+        if (!empty($filters['hook'])) {
+            $where[] = 'hook LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($filters['hook']) . '%';
+        }
+
+        if (!empty($filters['action'])) {
+            $where[] = 'action = %s';
+            $params[] = $filters['action'];
+        }
+
+        $sql = "SELECT id, hook, action, note, created_at FROM {$table}";
+        if ($where) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $sql .= ' ORDER BY id DESC LIMIT %d';
+        $params[] = 200;
+
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
         return is_array($rows) ? $rows : [];
     }
 
@@ -843,10 +867,30 @@ class GDCronManager
         return $links;
     }
 
-    private function render_log_panel(array $log): void
+    private function render_log_panel(array $log, array $filters, string $current_page): void
     {
         echo '<h2>' . esc_html__('Event Log', 'gd-cron') . '</h2>';
         echo '<p class="description">' . esc_html__('Recent actions performed through Cron Manager.', 'gd-cron') . '</p>';
+
+        $page_param = $current_page ?: self::MENU_SLUG;
+        $action_filter = $filters['action'] ?? '';
+        $hook_filter = $filters['hook'] ?? '';
+
+        echo '<form method="get" class="gd-cron-filters" style="margin-top:8px;">';
+        echo '<input type="hidden" name="page" value="' . esc_attr($page_param) . '">';
+        echo '<input type="hidden" name="tab" value="logs">';
+        echo '<label>' . esc_html__('Hook contains', 'gd-cron') . ' <input type="text" name="log_hook" value="' . esc_attr($hook_filter) . '" placeholder="my_hook"></label>';
+        echo '<label>' . esc_html__('Action', 'gd-cron') . ' <select name="log_action">';
+        echo '<option value="">' . esc_html__('Any', 'gd-cron') . '</option>';
+        $actions = ['run', 'delete', 'create', 'edit', 'auto-run'];
+        foreach ($actions as $action) {
+            echo '<option value="' . esc_attr($action) . '"' . selected($action_filter, $action, false) . '>' . esc_html(ucfirst($action)) . '</option>';
+        }
+        echo '</select></label>';
+        echo '<button class="button">' . esc_html__('Filter', 'gd-cron') . '</button> ';
+        $reset_url = admin_url('admin.php?page=' . $page_param . '&tab=logs');
+        echo '<a class="button" href="' . esc_url($reset_url) . '">' . esc_html__('Reset', 'gd-cron') . '</a>';
+        echo '</form>';
 
         if (empty($log)) {
             echo '<p>' . esc_html__('No log entries yet.', 'gd-cron') . '</p>';
