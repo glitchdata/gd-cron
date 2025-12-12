@@ -281,6 +281,11 @@ class GDCronManager
         $hook_filter = isset($_GET['hook_filter']) ? sanitize_text_field(wp_unslash($_GET['hook_filter'])) : '';
         $schedule_filter = isset($_GET['schedule_filter']) ? sanitize_text_field(wp_unslash($_GET['schedule_filter'])) : '';
         $only_due = !empty($_GET['only_due']);
+        $sort = isset($_GET['event_sort']) ? sanitize_key(wp_unslash($_GET['event_sort'])) : 'timestamp';
+        $direction = isset($_GET['event_dir']) ? sanitize_key(wp_unslash($_GET['event_dir'])) : 'asc';
+        $allowed_sorts = ['hook', 'timestamp', 'schedule', 'args'];
+        $sort = in_array($sort, $allowed_sorts, true) ? $sort : 'timestamp';
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
 
         $schedules = wp_get_schedules();
 
@@ -297,8 +302,31 @@ class GDCronManager
             return true;
         });
 
+        usort($filtered, function ($a, $b) use ($sort, $direction) {
+            switch ($sort) {
+                case 'hook':
+                    $cmp = strcasecmp((string) $a['hook'], (string) $b['hook']);
+                    break;
+                case 'schedule':
+                    $cmp = strcasecmp((string) $a['schedule'], (string) $b['schedule']);
+                    break;
+                case 'args':
+                    $a_args = wp_json_encode($a['args']);
+                    $b_args = wp_json_encode($b['args']);
+                    $cmp = strcasecmp((string) $a_args, (string) $b_args);
+                    break;
+                case 'timestamp':
+                default:
+                    $cmp = (int) $a['timestamp'] <=> (int) $b['timestamp'];
+                    break;
+            }
+            return $direction === 'asc' ? $cmp : -$cmp;
+        });
+
         echo '<form method="get" class="gd-cron-filters">';
         echo '<input type="hidden" name="page" value="' . esc_attr(self::MENU_SLUG) . '">';
+        echo '<input type="hidden" name="event_sort" value="' . esc_attr($sort) . '">';
+        echo '<input type="hidden" name="event_dir" value="' . esc_attr($direction) . '">';
         echo '<label>' . esc_html__('Hook contains', 'gd-cron') . ' <input type="text" name="hook_filter" value="' . esc_attr($hook_filter) . '" placeholder="my_hook"></label>';
         echo '<label>' . esc_html__('Recurrence', 'gd-cron') . ' <select name="schedule_filter">';
         echo '<option value="">' . esc_html__('Any', 'gd-cron') . '</option>';
@@ -320,12 +348,40 @@ class GDCronManager
             return;
         }
 
+        $base_url = admin_url('admin.php');
+        $base_args = ['page' => self::MENU_SLUG];
+        if ($hook_filter !== '') {
+            $base_args['hook_filter'] = $hook_filter;
+        }
+        if ($schedule_filter !== '') {
+            $base_args['schedule_filter'] = $schedule_filter;
+        }
+        if ($only_due) {
+            $base_args['only_due'] = 1;
+        }
+
+        $make_sort_link = function (string $field) use ($base_url, $base_args, $sort, $direction): string {
+            $dir_for_link = ($sort === $field && $direction === 'asc') ? 'desc' : 'asc';
+            $args = array_merge($base_args, [
+                'event_sort' => $field,
+                'event_dir' => $dir_for_link,
+            ]);
+            return esc_url(add_query_arg($args, $base_url));
+        };
+
+        $sort_arrow = function (string $field) use ($sort, $direction): string {
+            if ($sort === $field) {
+                return $direction === 'asc' ? ' &uarr;' : ' &darr;';
+            }
+            return ' &uarr;&darr;';
+        };
+
         echo '<table class="widefat fixed striped">';
         echo '<thead><tr>';
-        echo '<th>' . esc_html__('Hook', 'gd-cron') . '</th>';
-        echo '<th>' . esc_html__('Next Run', 'gd-cron') . '</th>';
-        echo '<th>' . esc_html__('Recurrence', 'gd-cron') . '</th>';
-        echo '<th>' . esc_html__('Args', 'gd-cron') . '</th>';
+        echo '<th><a href="' . $make_sort_link('hook') . '">' . esc_html__('Hook', 'gd-cron') . $sort_arrow('hook') . '</a></th>';
+        echo '<th><a href="' . $make_sort_link('timestamp') . '">' . esc_html__('Next Run', 'gd-cron') . $sort_arrow('timestamp') . '</a></th>';
+        echo '<th><a href="' . $make_sort_link('schedule') . '">' . esc_html__('Recurrence', 'gd-cron') . $sort_arrow('schedule') . '</a></th>';
+        echo '<th><a href="' . $make_sort_link('args') . '">' . esc_html__('Args', 'gd-cron') . $sort_arrow('args') . '</a></th>';
         echo '<th class="column-actions">' . esc_html__('Actions', 'gd-cron') . '</th>';
         echo '</tr></thead><tbody>';
 
