@@ -509,6 +509,7 @@ class GDCronManager
 
         echo '<p class="submit">';
         echo '<button type="submit" class="button button-primary">' . esc_html__('Schedule event', 'gd-cron') . '</button>';
+        echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=' . self::MENU_SLUG)) . '">' . esc_html__('Back to events', 'gd-cron') . '</a>';
         echo '</p>';
         echo '</form>';
     }
