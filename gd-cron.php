@@ -140,6 +140,7 @@ class GDCronManager
         }
 
         $this->settings = $this->get_settings();
+                    $this->prune_logs();
         $this->handle_actions();
 
         $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : self::MENU_SLUG;
@@ -930,6 +931,7 @@ class GDCronManager
 
         $this->settings = $this->get_settings();
         self::maybe_create_log_table();
+        $this->prune_logs();
         $this->handle_actions();
 
         $event = $this->find_event_from_request('get', true);
