@@ -921,7 +921,6 @@ class GDCronManager
             $note = isset($entry['note']) ? (string) $entry['note'] : '';
 
             $payload = [
-                'id' => (int) ($entry['id'] ?? 0),
                 'hook' => $hook,
                 'action' => $action,
                 'note' => $note,
@@ -937,7 +936,8 @@ class GDCronManager
             echo '<td>' . esc_html($note) . '</td>';
             echo '<td>';
             if ($data_url) {
-                echo '<a class="button button-small" href="' . esc_url($data_url) . '" download="gd-cron-log-' . esc_attr($entry['id'] ?? 0) . '.json">' . esc_html__('JSON', 'gd-cron') . '</a>';
+                $download_id = isset($entry['id']) ? (int) $entry['id'] : 0;
+                echo '<a class="button button-small" href="' . esc_url($data_url) . '" download="gd-cron-log-' . esc_attr($download_id) . '.json">' . esc_html__('JSON', 'gd-cron') . '</a>';
             }
             echo '</td>';
             echo '</tr>';
