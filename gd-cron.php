@@ -15,6 +15,9 @@ class GDCronManager
 {
     private const MENU_SLUG = 'gd-cron-manager';
     private const EDIT_SLUG = 'gd-cron-manager-edit';
+    private const EVENTS_SLUG = 'gd-cron-manager-events';
+    private const SETTINGS_SLUG = 'gd-cron-manager-settings';
+    private const LOGS_SLUG = 'gd-cron-manager-logs';
     private const NONCE_ACTION = 'gd-cron-action';
     private const OPTION_KEY = 'gd_cron_settings';
     private const LOG_OPTION_KEY = 'gd_cron_log';
@@ -48,6 +51,42 @@ class GDCronManager
             [$this, 'render_page'],
             'dashicons-clock',
             65
+        );
+
+        add_submenu_page(
+            self::MENU_SLUG,
+            __('Dashboard', 'gd-cron'),
+            __('Dashboard', 'gd-cron'),
+            'manage_options',
+            self::MENU_SLUG,
+            [$this, 'render_page']
+        );
+
+        add_submenu_page(
+            self::MENU_SLUG,
+            __('Events', 'gd-cron'),
+            __('Events', 'gd-cron'),
+            'manage_options',
+            self::EVENTS_SLUG,
+            [$this, 'render_page']
+        );
+
+        add_submenu_page(
+            self::MENU_SLUG,
+            __('Settings', 'gd-cron'),
+            __('Settings', 'gd-cron'),
+            'manage_options',
+            self::SETTINGS_SLUG,
+            [$this, 'render_page']
+        );
+
+        add_submenu_page(
+            self::MENU_SLUG,
+            __('Logs', 'gd-cron'),
+            __('Logs', 'gd-cron'),
+            'manage_options',
+            self::LOGS_SLUG,
+            [$this, 'render_page']
         );
 
         add_submenu_page(
