@@ -911,6 +911,7 @@ class GDCronManager
         echo '<th>' . esc_html__('Action', 'gd-cron') . '</th>';
         echo '<th>' . esc_html__('Hook', 'gd-cron') . '</th>';
         echo '<th>' . esc_html__('Details', 'gd-cron') . '</th>';
+        echo '<th>' . esc_html__('JSON', 'gd-cron') . '</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($log as $entry) {
@@ -919,11 +920,26 @@ class GDCronManager
             $hook = isset($entry['hook']) ? (string) $entry['hook'] : '';
             $note = isset($entry['note']) ? (string) $entry['note'] : '';
 
+            $payload = [
+                'id' => (int) ($entry['id'] ?? 0),
+                'hook' => $hook,
+                'action' => $action,
+                'note' => $note,
+                'created_at' => $entry['created_at'] ?? '',
+            ];
+            $json = wp_json_encode($payload);
+            $data_url = $json ? 'data:application/json;charset=utf-8,' . rawurlencode($json) : '';
+
             echo '<tr>';
             echo '<td>' . $time_display . '</td>';
             echo '<td>' . esc_html(ucfirst($action)) . '</td>';
             echo '<td><code>' . esc_html($hook) . '</code></td>';
             echo '<td>' . esc_html($note) . '</td>';
+            echo '<td>';
+            if ($data_url) {
+                echo '<a class="button button-small" href="' . esc_url($data_url) . '" download="gd-cron-log-' . esc_attr($entry['id'] ?? 0) . '.json">' . esc_html__('JSON', 'gd-cron') . '</a>';
+            }
+            echo '</td>';
             echo '</tr>';
         }
 
