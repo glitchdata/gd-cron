@@ -139,7 +139,21 @@ class GDCronManager
         $this->settings = $this->get_settings();
         $this->handle_actions();
 
-        $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : 'dashboard';
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : self::MENU_SLUG;
+        $tab = isset($_GET['tab']) ? sanitize_key(wp_unslash($_GET['tab'])) : '';
+
+        if ($page === self::EVENTS_SLUG) {
+            $tab = 'events';
+        } elseif ($page === self::SETTINGS_SLUG) {
+            $tab = 'settings';
+        } elseif ($page === self::LOGS_SLUG) {
+            $tab = 'logs';
+        }
+
+        if ($tab === '') {
+            $tab = 'dashboard';
+        }
+
         $tab = in_array($tab, ['dashboard', 'events', 'settings', 'logs'], true) ? $tab : 'dashboard';
 
         $events = $this->get_cron_events();
